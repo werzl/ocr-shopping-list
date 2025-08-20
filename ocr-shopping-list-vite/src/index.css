@@ -100,6 +100,10 @@ button:focus-visible {
   transform: translateY(2px);
 }
 
+.button-30:disabled {
+  opacity: 0.25;
+}
+
 /* @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
@@ -109,3 +113,9 @@ button:focus-visible {
     color: #747bff;
   }
 } */
+
+.button-30.dark {
+  background-color: #777777;
+  color: white;
+  box-shadow: rgb(0 0 0 / 32%) 0 2px 4px, rgb(0 0 0 / 30%) 0 7px 13px -3px, #2f2f2f 0 -3px 0 inset;
+}

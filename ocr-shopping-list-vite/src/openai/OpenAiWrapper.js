@@ -2,14 +2,24 @@ import OpenAI from "openai";
 
 const _apiKey = import.meta.env.VITE_OpenAI_Api_Key;
 
-const openai = new OpenAI({
-    apiKey: _apiKey,
-    dangerouslyAllowBrowser: true,
-});
+export default class OpenAIWrapper {
+    #openai = null;
 
-export async function recogniseHandwriting(imageUrl) {
-    try {
-        const response = await openai.chat.completions.create({
+    constructor(apiKey) {
+        if (!_apiKey && !apiKey) {
+            throw new Error("Api Key was not set");
+        }
+
+        this.#openai = new OpenAI({
+            apiKey: _apiKey ?? apiKey,
+            dangerouslyAllowBrowser: true,
+        });
+    }
+
+    async recogniseHandwriting(imageUrl) {
+        console.log("Making request to Open AI...");
+
+        const response = await this.#openai.chat.completions.create({
             model: "gpt-4-turbo",
             temperature: 1,
             top_p: 1,
@@ -38,11 +48,8 @@ export async function recogniseHandwriting(imageUrl) {
             ],
         });
 
-        console.log(response.choices[0].message.content);
+        console.log("Successfully processed OpenAI request");
 
         return response.choices[0].message.content;
-    }
-    catch (error) {
-        console.error("Error:", error);
     }
 }
