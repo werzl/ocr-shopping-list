@@ -44,7 +44,7 @@ function App() {
     try {
       localStorage.setItem(base64ImageStorageKey, base64Image);
     }
-    catch(e) {
+    catch (e) {
       console.error(e);
       localStorage.setItem(base64ImageStorageKey, placeholderStorageValue);
     }
@@ -54,7 +54,23 @@ function App() {
     localStorage.setItem(base64FileNameStorageKey, base64ImageFileName)
   }, [base64ImageFileName]);
 
-  async function handleProcess() {
+  useEffect(() => {
+    function beforeunload(e) {
+      if (imageUrl && shoppingList.length === 0) {
+        e.preventDefault();
+        e.returnValue = true;
+        window.confirm();
+      }
+    }
+
+    window.addEventListener('beforeunload', beforeunload);
+
+    return () => {
+      window.removeEventListener('beforeunload', beforeunload);
+    }
+  }, [imageUrl, shoppingList]);
+
+  async function processImage() {
     setIsLoading(true);
 
     try {
@@ -86,7 +102,9 @@ function App() {
     }
   }
 
-  function handleImageUpload(e) {
+  async function handleImageUpload(e) {
+    handleClear();
+
     const file = e.target.files[0];
 
     try {
@@ -95,7 +113,7 @@ function App() {
 
       const reader = new FileReader();
 
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const base64String = `data:${file.type};base64,${reader.result.split(",")[1]}`;
         setBase64ImageFileName(file.name);
         setBase64Image(reader.result);
@@ -103,6 +121,7 @@ function App() {
       };
 
       reader.readAsDataURL(file);
+
     }
     catch (e) {
       console.error(e);
@@ -110,7 +129,7 @@ function App() {
     }
   }
 
-  function handleCLear() {
+  function handleClear() {
     setImageUrl("");
     setShoppinglist([]);
     setBase64ImageFileName("");
@@ -132,7 +151,7 @@ function App() {
   }
 
   function handleBack() {
-    handleCLear();
+    handleClear();
     setApiKey("");
     setApiKeyConfirmed(false);
   }
@@ -152,8 +171,8 @@ function App() {
 
   function handleCheck(name, checked) {
     var newList = shoppingList.map(item =>
-    item.name === name ? { ...item, checked } : item
-  );
+      item.name === name ? { ...item, checked } : item
+    );
 
     setShoppinglist(newList);
   }
@@ -165,7 +184,7 @@ function App() {
           <img src={notepadLogo} className="logo" alt="Notepad logo" />
         </a>
       </div>
-      <h2>HandyList 1.3.0</h2>
+      <h2>HandyList 1.3.1</h2>
 
       {!apiKeyConfirmed &&
         <div className="div">
@@ -189,21 +208,24 @@ function App() {
             </button>
 
             <br /><br />
-            <div className="file-input">
-              <input type="file" id="file" className="file" accept="image/jpeg, image/jpg, image/png, image/webp, image/gif" onChange={handleImageUpload} />
-              <label htmlFor="file">
-                Upload photo
-              </label>
-            </div>
 
-            <button className="button-30" onClick={async () => await handleProcess()} disabled={isLoading || !imageUrl} style={{ "width": "100px" }}>
+            <input type="file" id="upload" accept="image/jpeg, image/jpg, image/png, image/webp, image/gif" onChange={handleImageUpload} style={{display: "none"}} disabled={isLoading}/>
+            <label htmlFor="upload" className="button-30 upload" disabled={isLoading}>
+              Upload Photo
+            </label>
+
+            <br /><br />
+
+            <button className={`button-30 ${isLoading ? "loading" : ""}`} onClick={async () => await processImage()} disabled={isLoading || shoppingList.length > 0 || !imageUrl} style={{ "width": "100px" }}>
               {!isLoading && "Process"}
+
 
               {isLoading && <div className="loader"></div>}
             </button>
 
             <br /><br />
-            <button className="button-30" onClick={() => handleCLear()} disabled={isLoading}>
+
+            <button className="button-30" onClick={() => handleClear()} disabled={isLoading}>
               Clear
             </button>
           </div>
@@ -218,21 +240,24 @@ function App() {
           <div className="shopping-list" ref={shoppingListRef}>
             {shoppingList.length > 0 &&
               <>
-                {shoppingList.map(item => (
-                  <div className="checkbox-wrapper-52" key={item.name}>
-                    <label htmlFor={item.name} className="item">
-                      <input type="checkbox" id={item.name} className="hidden" checked={item.checked} onChange={(e) => handleCheck(item.name, e.target.checked)}/>
+                {shoppingList.map(item => {
+                  let key = Math.random();
 
-                      <label htmlFor={item.name} className="cbx">
-                        <svg width="14px" height="12px" viewBox="0 0 14 12">
-                          <polyline points="1 7.6 5 11 13 1"></polyline>
-                        </svg>
+                  return (
+                    <div className="checkbox-wrapper-52" key={key}>
+                      <label htmlFor={key} className="item">
+                        <input type="checkbox" id={key} className="hidden" checked={item.checked} onChange={(e) => handleCheck(item.name, e.target.checked)} />
+
+                        <label htmlFor={key} className="cbx">
+                          <svg width="14px" height="12px" viewBox="0 0 14 12">
+                            <polyline points="1 7.6 5 11 13 1"></polyline>
+                          </svg>
+                        </label>
+
+                        <label htmlFor={key} className="cbx-lbl">{item.name}</label>
                       </label>
-
-                      <label htmlFor={item.name} className="cbx-lbl">{item.name}</label>
-                    </label>
-                  </div>
-                ))}
+                    </div>);
+                })}
               </>
             }
           </div>

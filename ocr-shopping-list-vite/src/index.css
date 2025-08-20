@@ -92,7 +92,7 @@ button:focus-visible {
 
 .button-30:hover {
   box-shadow: rgba(45, 35, 66, 0.4) 0 4px 8px, rgba(45, 35, 66, 0.3) 0 7px 13px -3px, #D6D6E7 0 -3px 0 inset;
-  transform: translateY(-2px);
+  transform: translateY(-3px);
 }
 
 .button-30:active {
@@ -100,8 +100,12 @@ button:focus-visible {
   transform: translateY(2px);
 }
 
-.button-30:disabled {
+.button-30:disabled, input:disabled+label {
   opacity: 0.25;
+
+  &:hover {
+    transform: none;
+  }
 }
 
 /* @media (prefers-color-scheme: light) {
@@ -118,6 +122,16 @@ button:focus-visible {
   background-color: #777777;
   color: white;
   box-shadow: rgb(0 0 0 / 32%) 0 2px 4px, rgb(0 0 0 / 30%) 0 7px 13px -3px, #2f2f2f 0 -3px 0 inset;
+}
+
+.button-30.upload {
+  background: linear-gradient(202deg, #dd19fb, #25bae3);
+  color: white;
+  box-shadow: rgb(0 0 0 / 32%) 0 2px 4px, rgb(0 0 0 / 12%) 0 7px 13px -3px, #ffffff2e 0 -3px 0 inset;
+}
+
+.button-30.loading {
+  opacity: 1;
 }
 
 select,
