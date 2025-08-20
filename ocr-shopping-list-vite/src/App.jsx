@@ -76,8 +76,15 @@ function App() {
   }
 
   function handleApiKeyConfirmation() {
-    openAiWrapper.current = new OpenAiWrapper(apiKey);
-    setApiKeyConfirmed(true);
+    try {
+
+      openAiWrapper.current = new OpenAiWrapper(apiKey);
+      setApiKeyConfirmed(true);
+    }
+    catch (e) {
+      console.error(e);
+      errorToast("API Key not set");
+    }
   }
 
   function handleBack() {
