@@ -1,16 +1,34 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ToastContainer, toast } from "react-toastify";
 
 import notepadLogo from "./assets/notepad.png";
+import placeholder from "./assets/placeholder.png";
 import OpenAiWrapper from "./openai/OpenAiWrapper.js";
 //import { recogniseHandwriting } from "../test/openai/openAiWrapperMock";
 import "./App.css";
 
+const shoppingListStorageKey = "shoppingList";
+const base64ImageStorageKey = "base64Image";
+const placeholderStorageValue = "placeholder";
+const base64FileNameStorageKey = "base64FileName";
+
 function App() {
-  const [base64ImageFileName, setBase64ImageFileName] = useState("");
-  const [base64Image, setBase64Image] = useState("");
+  const [base64ImageFileName, setBase64ImageFileName] = useState(() => {
+    const storageFileName = localStorage.getItem(base64FileNameStorageKey);
+    return storageFileName ? storageFileName : "";
+  });
+
+  const [base64Image, setBase64Image] = useState(() => {
+    const storageImage = localStorage.getItem(base64ImageStorageKey);
+    return storageImage ? storageImage : "";
+  });
+
+  const [shoppingList, setShoppinglist] = useState(() => {
+    const storageShoppingList = localStorage.getItem(shoppingListStorageKey);
+    return storageShoppingList ? JSON.parse(storageShoppingList) : [];
+  });
+
   const [imageUrl, setImageUrl] = useState("");
-  const [shoppingList, setShoppinglist] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [apiKeyConfirmed, setApiKeyConfirmed] = useState(false);
@@ -18,13 +36,38 @@ function App() {
   const shoppingListRef = useRef(null);
   const openAiWrapper = useRef(null);
 
+  useEffect(() => {
+    localStorage.setItem(shoppingListStorageKey, JSON.stringify(shoppingList));
+  }, [shoppingList]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(base64ImageStorageKey, base64Image);
+    }
+    catch(e) {
+      console.error(e);
+      localStorage.setItem(base64ImageStorageKey, placeholderStorageValue);
+    }
+  }, [base64Image]);
+
+  useEffect(() => {
+    localStorage.setItem(base64FileNameStorageKey, base64ImageFileName)
+  }, [base64ImageFileName]);
+
   async function handleProcess() {
     setIsLoading(true);
 
     try {
       const commaSeparated = await openAiWrapper.current.recogniseHandwriting(imageUrl);
       const array = commaSeparated.split(',');
-      setShoppinglist(array);
+      var shoppingListObjects = array.map((v) => {
+        return {
+          name: v,
+          checked: false
+        }
+      });
+
+      setShoppinglist(shoppingListObjects);
       setIsLoading(false);
 
       shoppingListRef.current.scrollIntoView({ behaviour: "smooth" });
@@ -73,6 +116,7 @@ function App() {
     setBase64ImageFileName("");
     setBase64Image("");
     setIsLoading(false);
+    localStorage.removeItem(shoppingListStorageKey);
   }
 
   function handleApiKeyConfirmation() {
@@ -106,6 +150,14 @@ function App() {
     });
   }
 
+  function handleCheck(name, checked) {
+    var newList = shoppingList.map(item =>
+    item.name === name ? { ...item, checked } : item
+  );
+
+    setShoppinglist(newList);
+  }
+
   return (
     <>
       <div>
@@ -113,7 +165,7 @@ function App() {
           <img src={notepadLogo} className="logo" alt="Notepad logo" />
         </a>
       </div>
-      <h2>HandyList 1.2.0</h2>
+      <h2>HandyList 1.3.0</h2>
 
       {!apiKeyConfirmed &&
         <div className="div">
@@ -159,26 +211,30 @@ function App() {
           {base64Image &&
             <div className="uploaded-image-container">
               <p>{base64ImageFileName}</p>
-              <img src={base64Image} className="uploaded-image" />
+              <img src={base64Image === placeholderStorageValue ? placeholder : base64Image} className="uploaded-image" />
             </div>
           }
 
           <div className="shopping-list" ref={shoppingListRef}>
-            {shoppingList.map(item => (
-              <div className="checkbox-wrapper-52" key={item}>
-                <label htmlFor={item} className="item">
-                  <input type="checkbox" id={item} className="hidden" />
+            {shoppingList.length > 0 &&
+              <>
+                {shoppingList.map(item => (
+                  <div className="checkbox-wrapper-52" key={item.name}>
+                    <label htmlFor={item.name} className="item">
+                      <input type="checkbox" id={item.name} className="hidden" checked={item.checked} onChange={(e) => handleCheck(item.name, e.target.checked)}/>
 
-                  <label htmlFor={item} className="cbx">
-                    <svg width="14px" height="12px" viewBox="0 0 14 12">
-                      <polyline points="1 7.6 5 11 13 1"></polyline>
-                    </svg>
-                  </label>
+                      <label htmlFor={item.name} className="cbx">
+                        <svg width="14px" height="12px" viewBox="0 0 14 12">
+                          <polyline points="1 7.6 5 11 13 1"></polyline>
+                        </svg>
+                      </label>
 
-                  <label htmlFor={item} className="cbx-lbl">{item}</label>
-                </label>
-              </div>
-            ))}
+                      <label htmlFor={item.name} className="cbx-lbl">{item.name}</label>
+                    </label>
+                  </div>
+                ))}
+              </>
+            }
           </div>
         </>
       }
