@@ -10,7 +10,6 @@ const shoppingListStorageKey = "shoppingList";
 const base64ImageStorageKey = "base64Image";
 const placeholderStorageValue = "placeholder";
 const base64FileNameStorageKey = "base64FileName";
-const imageUrlStorageKey = "imageUrl";
 
 function App() {
   const [base64ImageFileName, setBase64ImageFileName] = useState(() => {
@@ -28,11 +27,7 @@ function App() {
     return storageShoppingList ? JSON.parse(storageShoppingList) : [];
   });
 
-  const [imageUrl, setImageUrl] = useState(() => {
-    const storageUrl = localStorage.getItem(imageUrlStorageKey);
-    return storageUrl ? storageUrl : "";
-  });
-
+  const [imageUrl, setImageUrl] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState("");
@@ -69,8 +64,6 @@ function App() {
     }
 
     window.addEventListener('beforeunload', beforeunload);
-
-    localStorage.setItem(imageUrlStorageKey, imageUrl);
 
     return () => {
       window.removeEventListener('beforeunload', beforeunload);
