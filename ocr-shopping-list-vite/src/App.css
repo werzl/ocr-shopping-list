@@ -11,12 +11,15 @@
   will-change: filter;
   transition: filter 300ms;
 }
+
 .logo-spin {
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
+
 .logo:hover {
   filter: drop-shadow(0 0 2em #646cffaa);
 }
+
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
@@ -25,6 +28,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -36,18 +40,8 @@
   }
 }
 
-.card {
-  display: flex;
-  gap: 3px;
-  justify-content: center;
-}
-
 .read-the-docs {
   color: #888;
-}
-
-button {
-  color: white;
 }
 
 .uploaded-image-container {
@@ -55,6 +49,7 @@ button {
   overflow-wrap: anywhere;
   padding: 0 2rem;
 }
+
 .uploaded-image {
   max-height: 300px;
   max-width: 100%;
@@ -111,6 +106,7 @@ button {
   border-radius: 3px;
   cursor: pointer;
 }
+
 .checkbox-wrapper-52 .item .cbx svg {
   position: relative;
   top: -5px;
@@ -119,10 +115,12 @@ button {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
 .checkbox-wrapper-52 .item .cbx svg polyline {
   stroke-width: 2;
   stroke: #18cda6;
 }
+
 .checkbox-wrapper-52 .item .cbx:before {
   content: '';
   position: absolute;
@@ -135,6 +133,7 @@ button {
   background: #18cda6;
   transform: scale(0);
 }
+
 .checkbox-wrapper-52 .item .cbx:after {
   content: '';
   position: absolute;
@@ -146,11 +145,13 @@ button {
   box-shadow: 0 -18px 0 #18cda6, 12px -12px 0 #18cda6, 18px 0 0 #18cda6, 12px 12px 0 #18cda6, 0 18px 0 #18cda6, -12px 12px 0 #18cda6, -18px 0 0 #18cda6, -12px -12px 0 #18cda6;
   transform: scale(0);
 }
+
 .checkbox-wrapper-52 .item .cbx-lbl {
   position: relative;
   cursor: pointer;
   transition: color 0.3s ease;
 }
+
 .checkbox-wrapper-52 .item .cbx-lbl:after {
   content: '';
   position: absolute;
@@ -160,31 +161,38 @@ button {
   height: 1px;
   background: #9098a9;
 }
+
 .checkbox-wrapper-52 .item input {
   display: none;
 }
-.checkbox-wrapper-52 .item input:checked + .cbx {
+
+.checkbox-wrapper-52 .item input:checked+.cbx {
   border-color: transparent;
 }
-.checkbox-wrapper-52 .item input:checked + .cbx svg {
+
+.checkbox-wrapper-52 .item input:checked+.cbx svg {
   transform: scale(1.5);
   transition: all 0.4s ease;
   transition-delay: 0.1s;
 }
-.checkbox-wrapper-52 .item input:checked + .cbx:before {
+
+.checkbox-wrapper-52 .item input:checked+.cbx:before {
   transform: scale(1);
   opacity: 0;
   transition: all 0.3s ease;
 }
-.checkbox-wrapper-52 .item input:checked + .cbx:after {
+
+.checkbox-wrapper-52 .item input:checked+.cbx:after {
   transform: scale(1);
   opacity: 0;
   transition: all 0.6s ease;
 }
-.checkbox-wrapper-52 .item input:checked ~ .cbx-lbl {
+
+.checkbox-wrapper-52 .item input:checked~.cbx-lbl {
   color: #9098a9;
 }
-.checkbox-wrapper-52 .item input:checked ~ .cbx-lbl:after {
+
+.checkbox-wrapper-52 .item input:checked~.cbx-lbl:after {
   width: 100%;
   transition: all 0.4s ease;
 }
@@ -203,8 +211,43 @@ button {
   mask-composite: subtract;
   animation: l3 1s infinite linear;
 }
-@keyframes l3 {to{transform: rotate(1turn)}}
+
+@keyframes l3 {
+  to {
+    transform: rotate(1turn)
+  }
+}
 
 .disabled {
   opacity: 0.25;
+}
+
+.nav-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.25;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.2);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pulse {
+  animation: pulse 1.5s infinite;
 }
