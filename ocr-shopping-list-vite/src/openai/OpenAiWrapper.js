@@ -20,7 +20,7 @@ export default class OpenAIWrapper {
         console.log("Making request to Open AI...");
 
         const response = await this.#openai.chat.completions.create({
-            model: "gpt-5.1",
+            model: "gpt-4.1",
             temperature: 1,
             top_p: 1,
             max_completion_tokens: 2048,
