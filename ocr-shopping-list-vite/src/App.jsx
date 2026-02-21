@@ -195,7 +195,7 @@ function App() {
           <img src={notepadLogo} className="logo" alt="Notepad logo" />
         </a>
       </div>
-      <h2>HandyList 1.3.1</h2>
+      <h2>HandyList {__APP_VERSION__}</h2>
 
       {!apiKeyConfirmed &&
         <div className="div">
