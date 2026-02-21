@@ -20,10 +20,10 @@ export default class OpenAIWrapper {
         console.log("Making request to Open AI...");
 
         const response = await this.#openai.chat.completions.create({
-            model: "gpt-4-turbo",
+            model: "gpt-5",
             temperature: 1,
             top_p: 1,
-            max_tokens: 2048,
+            max_completion_tokens: 2048,
             messages: [
                 {
                     role: "system",
@@ -51,5 +51,13 @@ export default class OpenAIWrapper {
         console.log("Successfully processed OpenAI request");
 
         return response.choices[0].message.content;
+    }
+
+    async testApiKey() {
+        console.log("Testing API Key...");
+
+        const response = await this.#openai.models.list();
+
+        return response.data;
     }
 }

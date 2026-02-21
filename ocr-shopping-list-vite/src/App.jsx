@@ -4,13 +4,13 @@ import { ToastContainer, toast } from "react-toastify";
 import notepadLogo from "./assets/notepad.png";
 import placeholder from "./assets/placeholder.png";
 import OpenAiWrapper from "./openai/OpenAiWrapper.js";
-//import { recogniseHandwriting } from "../test/openai/openAiWrapperMock";
 import "./App.css";
 
 const shoppingListStorageKey = "shoppingList";
 const base64ImageStorageKey = "base64Image";
 const placeholderStorageValue = "placeholder";
 const base64FileNameStorageKey = "base64FileName";
+const imageUrlStorageKey = "imageUrl";
 
 function App() {
   const [base64ImageFileName, setBase64ImageFileName] = useState(() => {
@@ -28,7 +28,12 @@ function App() {
     return storageShoppingList ? JSON.parse(storageShoppingList) : [];
   });
 
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageUrl, setImageUrl] = useState(() => {
+    const storageUrl = localStorage.getItem(imageUrlStorageKey);
+    return storageUrl ? storageUrl : "";
+  });
+
+
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [apiKeyConfirmed, setApiKeyConfirmed] = useState(false);
@@ -51,7 +56,7 @@ function App() {
   }, [base64Image]);
 
   useEffect(() => {
-    localStorage.setItem(base64FileNameStorageKey, base64ImageFileName)
+    localStorage.setItem(base64FileNameStorageKey, base64ImageFileName);
   }, [base64ImageFileName]);
 
   useEffect(() => {
@@ -64,6 +69,8 @@ function App() {
     }
 
     window.addEventListener('beforeunload', beforeunload);
+
+    localStorage.setItem(imageUrlStorageKey, imageUrl);
 
     return () => {
       window.removeEventListener('beforeunload', beforeunload);
@@ -121,7 +128,6 @@ function App() {
       };
 
       reader.readAsDataURL(file);
-
     }
     catch (e) {
       console.error(e);
@@ -142,15 +148,20 @@ function App() {
     try {
 
       openAiWrapper.current = new OpenAiWrapper(apiKey);
-      setApiKeyConfirmed(true);
+      openAiWrapper.current.testApiKey();
     }
     catch (e) {
       console.error(e);
-      errorToast("API Key not set");
+      errorToast("Invalid API Key");
+      return;
     }
+
+    setApiKeyConfirmed(true);
   }
 
   function handleBack() {
+    openAiWrapper.current = null;
+
     handleClear();
     setApiKey("");
     setApiKeyConfirmed(false);
