@@ -58,6 +58,8 @@ export default class OpenAIWrapper {
 
         const response = await this.#openai.models.list();
 
+        console.log("API Key Valid");
+
         return response.data;
     }
 }

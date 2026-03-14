@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { ToastContainer, toast } from "react-toastify";
-import { Container, Row, Col, Card, Navbar } from "react-bootstrap";
+import { Container, Row, Col, Card, Navbar, Button } from "react-bootstrap";
 
 import notepadLogo from "./assets/notepad.png";
 import placeholder from "./assets/placeholder.png";
 import OpenAiWrapper from "./openai/OpenAiWrapper.js";
-import photoIcon from "./assets/photo-film-solid-full.svg";
-import playIcon from "./assets/play-solid-full.svg";
-import trashIcon from "./assets/trash-solid-full.svg";
-import leftIcon from "./assets/arrow-left-solid-full.svg";
+import LeftIcon from "./assets/arrow-left-solid-full.svg?react";
+import PhotoIcon from "./assets/photo-film-solid-full.svg?react";
+import PlayIcon from "./assets/play-solid-full.svg?react";
+import TrashIcon from "./assets/trash-solid-full.svg?react";
+import PinchIcon from "./assets/pinch-to-zoom.svg?react";
+
 import "./App.css";
 
 const shoppingListStorageKey = "shoppingList";
@@ -16,6 +18,7 @@ const base64ImageStorageKey = "base64Image";
 const placeholderStorageValue = "placeholder";
 const base64FileNameStorageKey = "base64FileName";
 
+// eslint-disable-next-line no-undef
 const appVersion = __APP_VERSION__; // Injected at build time from vite.config.js
 
 function App() {
@@ -112,9 +115,9 @@ function App() {
 
   async function handleImageUpload(e) {
     handleClear();
-    
+
     const file = e.target.files[0];
-    
+
     // Clear the file input so that the same file can be uploaded again if needed without having to manually clear the input
     inputFileButtonRef.current.value = null;
 
@@ -129,6 +132,8 @@ function App() {
         setBase64ImageFileName(file.name);
         setBase64Image(reader.result);
         setImageUrl(base64String);
+        
+        console.log("Image uploaded successfully", file.name);
       };
 
       reader.readAsDataURL(file);
@@ -194,26 +199,25 @@ function App() {
 
   return (
     <>
-      <Container>
         <Row>
           <Col>
             <div>
-              <a>
-                <img src={notepadLogo} className="logo" alt="Notepad logo" />
-              </a>
+                <h2><img src={notepadLogo} className="logo" alt="Notepad logo" /> HandyList {appVersion}</h2>
             </div>
-            <h2>HandyList {appVersion}</h2>
 
             {!apiKeyConfirmed &&
               <div className="div">
-                <form className="w-25 mt-3 text-center" >
+                <form className="mt-3 text-center" >
                   <label htmlFor="apiKey">Enter an API Key</label>
                   <br />
+
                   <input type="password" id="apiKey" placeholder="API-Key" onChange={e => setApiKey(e.target.value)} style={{ "width": "400px" }} />
+
                   <br /><br />
-                  <button type="button" className="button-30" onClick={() => handleApiKeyConfirmation()}>
+
+                  <Button variant="outline-primary" onClick={() => handleApiKeyConfirmation()}>
                     Submit
-                  </button>
+                  </Button>
                 </form>
               </div>
             }
@@ -222,8 +226,8 @@ function App() {
               <>
                 {base64Image &&
                   <div className="uploaded-image-container">
-                    <p>{base64ImageFileName}</p>
-                    <img src={base64Image === placeholderStorageValue ? placeholder : base64Image} className="uploaded-image" />
+                    <p><img src={base64Image === placeholderStorageValue ? placeholder : base64Image} className="uploaded-image" /> <small className="fw-lighter fst-italic">Zoom in to see me! <PinchIcon /></small></p>
+                    
                   </div>
                 }
 
@@ -234,7 +238,7 @@ function App() {
                         let key = Math.random();
 
                         return (
-                          <div className="checkbox-wrapper-52" key={key}>
+                          <div className="checkbox-wrapper-52" key={key + "-" + item}>
                             <label htmlFor={key} className="item">
                               <input type="checkbox" id={key} className="hidden" checked={item.checked} onChange={(e) => handleCheck(item.name, e.target.checked)} />
 
@@ -256,7 +260,7 @@ function App() {
                       <Card.Header className="border-bottom">Upload an image</Card.Header>
                       <Card.Body>
                         <Card.Text>
-                          No items found. Upload an image of a handwritten shopping list and click the play button to extract the text.
+                          No items found. Upload an image of a handwritten shopping list and hit "Process" to generate a list.
                         </Card.Text>
                       </Card.Body>
                     </Card>
@@ -268,35 +272,41 @@ function App() {
             <ToastContainer />
           </Col>
         </Row>
-      </Container>
 
       {apiKeyConfirmed &&
-        <Navbar fixed="bottom" variant="dark" text="light" className="justify-content-center" style={{ paddingBottom: "42.67px", borderTop: "1px solid white", backgroundColor: "#242424" }}>
+        <Navbar fixed="bottom" className="app-nav-bar justify-content-center">
           <Row>
             <Col>
               <button className="nav-button" onClick={() => handleBack()} disabled={isLoading}>
-                <img src={leftIcon} alt="Back" style={{ width: "35px", height: "35px" }} />
+                <LeftIcon />
               </button>
+
+              <small>Back</small>
             </Col>
 
-            <Col className="align-content-center">
+            <Col>
               <input ref={inputFileButtonRef} type="file" id="upload" accept="image/jpeg, image/jpg, image/png, image/webp, image/gif" onChange={handleImageUpload} style={{ display: "none" }} disabled={isLoading} />
               <label htmlFor="upload" disabled={isLoading}>
-                <img src={photoIcon} alt="Upload" style={{ width: "35px", height: "35px" }} />
+                <PhotoIcon />
+                <small>Upload</small>
               </label>
             </Col>
 
-            <Col className="align-content-center">
+            <Col>
               <button className={`nav-button ${isLoading ? "loading" : ""}`} onClick={async () => await processImage()} disabled={isLoading || shoppingList.length > 0 || !imageUrl}>
-                {!isLoading && <img src={playIcon} alt="Process" style={{ width: "35px", height: "35px" }} className={`${base64Image && shoppingList.length === 0 ? "pulse" : ""}`}/>}
+                {!isLoading && <PlayIcon />}
                 {isLoading && <div className="loader"></div>}
               </button>
+
+              <small>Process</small>
             </Col>
 
-            <Col className="align-content-center">
+            <Col>
               <button className="nav-button" onClick={() => handleClear()} disabled={isLoading}>
-                <img src={trashIcon} alt="Clear" style={{ width: "35px", height: "35px" }} />
+                <TrashIcon />
               </button>
+
+              <small>Clear</small>
             </Col>
           </Row>
         </Navbar>
