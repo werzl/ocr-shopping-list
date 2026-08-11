@@ -1,5 +1,44 @@
 # ocr-shopping-list
 
+A small app I use often.
+
+1. Take a snap of a handwritten shopping list
+2. Image is submitted to the OpenAI API with a prompt
+3. Returned is OCR-recognised text and a neat checkbox-list of shopping items
+
+## Architecture
+```mermaid
+flowchart LR
+    USER((User))
+
+    subgraph APP["OCR Shopping List Application"]
+        direction TB
+
+        UPLOAD[Image Upload]
+        FILE[FileReader<br/>Base64 / Data URL]
+        REACT[React State]
+        OCR[OCR Processing]
+        PARSE[Parse OCR Text]
+        SHOPPING[Shopping List]
+        STORAGE[(localStorage)]
+
+        UPLOAD --> FILE
+        FILE --> OCR
+        OCR --> PARSE
+        PARSE --> REACT
+        REACT --> SHOPPING
+
+        REACT <--> STORAGE
+        SHOPPING -->|Check / edit items| REACT
+    end
+
+    OPENAI["OpenAI GPT-4.1<br/>Vision / OCR API"]
+
+    USER -->|Select handwritten image| UPLOAD
+    OCR -->|HTTPS API request| OPENAI
+    OPENAI -->|Recognised text| OCR
+```
+
 ## Local Dev
 ### ENV Variables
 When running the `dev` script, use `.env` files to supply required config.
@@ -22,16 +61,4 @@ server: {
 	]
 },
 ```
-
-
-## Plugins
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-
-## Expanding the ESLint configuration
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
-
 
