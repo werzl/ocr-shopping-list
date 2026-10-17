@@ -40,18 +40,39 @@ flowchart LR
 ```
 
 ## Local Dev
+The app lives in the repository root. Install dependencies with `npm ci` there, then use the scripts below. The production build is written to `dist/`.
+
 ### ENV Variables
 When running the `dev` script, use `.env` files to supply required config.
 
-Place a `.env.development` file in the `/ocr-shopping-list-vite` directory, with the following:
+Place a `.env.development` file in the repository root, with the following:
 - `VITE_OpenAI_Api_Key`: API Key generated in the OpenAI API Platform.
+
+### Scripts
+From the repository root:
+
+```bash
+npm run dev        # start Vite
+npm run lint       # ESLint
+npm run test:run   # Vitest (single run)
+npm run build      # TypeScript + Vite production build
+npm run preview    # preview production build
+```
+
+### Codex instructions and skill
+Repository rules live in `AGENTS.md`. Codex discovers the local `pre-commit-checks` skill in `.agents/skills/pre-commit-checks/SKILL.md`; invoke it with `$pre-commit-checks` to run the full local quality gate. These replace the previous Cursor rules.
+
+### Pull requests
+New PRs use the template in `.github/PULL_REQUEST_TEMPLATE.md` (Summary, Test plan, and Screenshots). Fill the checklist with the scripts above plus any feature-specific checks. Use `$create-pull-request` to follow the workflow in `.agents/skills/create-pull-request/SKILL.md`.
+
+Screenshots are optional. Include captioned images when requested or useful to explain visual changes; otherwise remove the Screenshots section. Keep API keys and personal information out of captured images. Installing new screenshot tooling requires approval under `AGENTS.md`.
 
 ### NGROK
 To test over the internet using NGROK, the vite config needs to be updated to allow NGROK's host.
 
-Add the following to `vite.config.js`:
+Add the following to `vite.config.ts` (or the active Vite config):
 
-```js
+```ts
 server: {
 	hmr: {
 		clientPort: 443,
@@ -61,4 +82,3 @@ server: {
 	]
 },
 ```
-

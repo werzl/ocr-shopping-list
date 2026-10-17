@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ChangeEvent } from "react";
 import { ToastContainer, toast } from "react-toastify";
-import { Container, Row, Col, Card, Navbar, Button } from "react-bootstrap";
+import { Row, Col, Card, Navbar, Button } from "react-bootstrap";
 
 import notepadLogo from "./assets/notepad.png";
 import placeholder from "./assets/placeholder.png";
-import OpenAiWrapper from "./openai/OpenAiWrapper.js";
+import OpenAiWrapper from "./openai/OpenAiWrapper";
 import LeftIcon from "./assets/arrow-left-solid-full.svg?react";
 import PhotoIcon from "./assets/photo-film-solid-full.svg?react";
 import PlayIcon from "./assets/play-solid-full.svg?react";
@@ -13,13 +13,17 @@ import PinchIcon from "./assets/pinch-to-zoom.svg?react";
 
 import "./App.css";
 
+interface ShoppingListItem {
+  name: string;
+  checked: boolean;
+}
+
 const shoppingListStorageKey = "shoppingList";
 const base64ImageStorageKey = "base64Image";
 const placeholderStorageValue = "placeholder";
 const base64FileNameStorageKey = "base64FileName";
 
-// eslint-disable-next-line no-undef
-const appVersion = __APP_VERSION__; // Injected at build time from vite.config.js
+const appVersion = __APP_VERSION__; // Injected at build time from vite.config.ts
 
 function App() {
   const [base64ImageFileName, setBase64ImageFileName] = useState(() => {
@@ -32,9 +36,9 @@ function App() {
     return storageImage ? storageImage : "";
   });
 
-  const [shoppingList, setShoppinglist] = useState(() => {
+  const [shoppingList, setShoppinglist] = useState<ShoppingListItem[]>(() => {
     const storageShoppingList = localStorage.getItem(shoppingListStorageKey);
-    return storageShoppingList ? JSON.parse(storageShoppingList) : [];
+    return storageShoppingList ? JSON.parse(storageShoppingList) as ShoppingListItem[] : [];
   });
 
   const [imageUrl, setImageUrl] = useState("");
@@ -43,9 +47,9 @@ function App() {
   const [apiKey, setApiKey] = useState("");
   const [apiKeyConfirmed, setApiKeyConfirmed] = useState(false);
 
-  const shoppingListRef = useRef(null);
-  const openAiWrapper = useRef(null);
-  const inputFileButtonRef = useRef(null);
+  const shoppingListRef = useRef<HTMLDivElement>(null);
+  const openAiWrapper = useRef<OpenAiWrapper | null>(null);
+  const inputFileButtonRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     localStorage.setItem(shoppingListStorageKey, JSON.stringify(shoppingList));
@@ -66,7 +70,7 @@ function App() {
   }, [base64ImageFileName]);
 
   useEffect(() => {
-    function beforeunload(e) {
+    function beforeunload(e: BeforeUnloadEvent) {
       if (imageUrl && shoppingList.length === 0) {
         e.preventDefault();
         e.returnValue = true;
@@ -82,12 +86,16 @@ function App() {
   }, [imageUrl, shoppingList]);
 
   async function processImage() {
+    if (!openAiWrapper.current) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const commaSeparated = await openAiWrapper.current.recogniseHandwriting(imageUrl);
       const array = commaSeparated.split(',');
-      var shoppingListObjects = array.map((v) => {
+      const shoppingListObjects = array.map((v) => {
         return {
           name: v,
           checked: false
@@ -97,12 +105,14 @@ function App() {
       setShoppinglist(shoppingListObjects);
       setIsLoading(false);
 
-      shoppingListRef.current.scrollIntoView({ behaviour: "smooth" });
+      shoppingListRef.current?.scrollIntoView({ behavior: "smooth" });
     }
     catch (e) {
       console.error(e);
 
-      if (e.message.toLowerCase().includes("401")) {
+      const message = e instanceof Error ? e.message : String(e);
+
+      if (message.toLowerCase().includes("401")) {
         errorToast("Invalid API Key");
       }
       else {
@@ -113,13 +123,15 @@ function App() {
     }
   }
 
-  async function handleImageUpload(e) {
+  async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
     handleClear();
 
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
 
     // Clear the file input so that the same file can be uploaded again if needed without having to manually clear the input
-    inputFileButtonRef.current.value = null;
+    if (inputFileButtonRef.current) {
+      inputFileButtonRef.current.value = "";
+    }
 
     try {
       if (!file)
@@ -128,11 +140,18 @@ function App() {
       const reader = new FileReader();
 
       reader.onloadend = async () => {
-        const base64String = `data:${file.type};base64,${reader.result.split(",")[1]}`;
+        const result = reader.result;
+
+        if (typeof result !== "string") {
+          errorToast("Error with image upload");
+          return;
+        }
+
+        const base64String = `data:${file.type};base64,${result.split(",")[1]}`;
         setBase64ImageFileName(file.name);
-        setBase64Image(reader.result);
+        setBase64Image(result);
         setImageUrl(base64String);
-        
+
         console.log("Image uploaded successfully", file.name);
       };
 
@@ -155,9 +174,8 @@ function App() {
 
   function handleApiKeyConfirmation() {
     try {
-
       openAiWrapper.current = new OpenAiWrapper(apiKey);
-      openAiWrapper.current.testApiKey();
+      void openAiWrapper.current.testApiKey();
     }
     catch (e) {
       console.error(e);
@@ -176,7 +194,7 @@ function App() {
     setApiKeyConfirmed(false);
   }
 
-  function errorToast(message) {
+  function errorToast(message: string) {
     toast.error(message, {
       position: "top-right",
       autoClose: 5000,
@@ -189,8 +207,8 @@ function App() {
     });
   }
 
-  function handleCheck(name, checked) {
-    var newList = shoppingList.map(item =>
+  function handleCheck(name: string, checked: boolean) {
+    const newList = shoppingList.map(item =>
       item.name === name ? { ...item, checked } : item
     );
 
@@ -227,7 +245,7 @@ function App() {
                 {base64Image &&
                   <div className="uploaded-image-container">
                     <p><img src={base64Image === placeholderStorageValue ? placeholder : base64Image} className="uploaded-image" /> <small className="fw-lighter fst-italic">Zoom in to see me! <PinchIcon /></small></p>
-                    
+
                   </div>
                 }
 
@@ -235,20 +253,20 @@ function App() {
                   {shoppingList.length > 0 &&
                     <>
                       {shoppingList.map(item => {
-                        let key = Math.random();
+                        const key = Math.random();
 
                         return (
-                          <div className="checkbox-wrapper-52" key={key + "-" + item}>
-                            <label htmlFor={key} className="item">
-                              <input type="checkbox" id={key} className="hidden" checked={item.checked} onChange={(e) => handleCheck(item.name, e.target.checked)} />
+                          <div className="checkbox-wrapper-52" key={key + "-" + item.name}>
+                            <label htmlFor={String(key)} className="item">
+                              <input type="checkbox" id={String(key)} className="hidden" checked={item.checked} onChange={(e) => handleCheck(item.name, e.target.checked)} />
 
-                              <label htmlFor={key} className="cbx">
+                              <label htmlFor={String(key)} className="cbx">
                                 <svg width="14px" height="12px" viewBox="0 0 14 12">
                                   <polyline points="1 7.6 5 11 13 1"></polyline>
                                 </svg>
                               </label>
 
-                              <label htmlFor={key} className="cbx-lbl">{item.name}</label>
+                              <label htmlFor={String(key)} className="cbx-lbl">{item.name}</label>
                             </label>
                           </div>);
                       })}
@@ -286,7 +304,7 @@ function App() {
 
             <Col>
               <input ref={inputFileButtonRef} type="file" id="upload" accept="image/jpeg, image/jpg, image/png, image/webp, image/gif" onChange={handleImageUpload} style={{ display: "none" }} disabled={isLoading} />
-              <label htmlFor="upload" disabled={isLoading}>
+              <label htmlFor="upload">
                 <PhotoIcon />
                 <small>Upload</small>
               </label>
