@@ -23,27 +23,11 @@
 
   body {
     background-color: var(--background-color);
-    max-height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
   }
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-.app-nav-bar {
-  .col {
-    display: flex;
-    flex-direction: column;
-    line-height: 20px;
-    justify-content: center;
-  }
-
-  svg {
-    fill: var(--color);
-    width: 35px;
-    height: 35px;
-  }
 }
