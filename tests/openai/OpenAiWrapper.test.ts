@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import OpenAIWrapper from './OpenAiWrapper'
+import OpenAIWrapper from '../../src/openai/OpenAiWrapper'
 
 const { createMock, listMock } = vi.hoisted(() => ({
   createMock: vi.fn(),

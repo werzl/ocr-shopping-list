@@ -41,7 +41,7 @@ Treat these as DevEx (non-exhaustive):
 - Package manager or Node/tooling requirements
 - Env vars and `.env*` files (names and where to put them — never real secrets)
 - Vite, ESLint, TypeScript, or other config that changes local workflow
-- Local mock/test server under `src/test/`
+- Local mock/test server under `tests/`
 - CI/CD workflows that change how contributors verify work
 - Ngrok, hosts, ports, or other local networking setup
 - New or renamed entrypoints, folder layout, or required install steps
@@ -106,3 +106,11 @@ Any command or action that changes `package.json`, lockfiles, or installs packag
 ## Repository skill
 
 Use the `pre-commit-checks` skill in `.agents/skills/pre-commit-checks/SKILL.md` when preparing a commit or running the full local quality gate.
+
+# Test location
+
+Put all test suites, test setup, fixtures and test-only helpers under the repository-root `tests/` directory. Mirror source subdirectories where useful (for example, `tests/openai/OpenAiWrapper.test.ts`). Use `*.test.ts` / `*.test.tsx` or `*.spec.ts` / `*.spec.tsx` for suites; import application code from `src/`. Do not colocate tests with production code. ESLint rejects suites outside `tests/`, and Vitest discovers suites inside `tests/` only. Shared setup lives in `tests/setup.ts`.
+
+# Browser tests
+
+Put real browser tests under `tests/browser/`. Keep mocked unit tests elsewhere under `tests/`. Run `npm run test:browser:install` after installing dependencies or changing Playwright. The required `npm run test:run` command runs both unit and headless Chromium tests. Do not replace browser compression and persistence checks with mocks.
