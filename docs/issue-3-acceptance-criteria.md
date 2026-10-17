@@ -8,7 +8,6 @@
 - When users clear **Categorise**, hide category headings and restore the original item order.
 - When users select **Categorise**, group items under these headings:
   - Fruit & Veg
-  - Veg
   - Dairy
   - Meat
   - Seafood
@@ -21,6 +20,7 @@
   - Pets
   - Baby
   - Medicine
+  - Soft drinks
   - Alcohol
   - Other
 - Show only headings that contain items.

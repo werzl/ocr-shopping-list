@@ -108,7 +108,7 @@ describe('real browser image compression and persistence', () => {
     const compressed = await compressImage(await fixtureFile());
     await saveSession(processedSession, compressed);
     const connection = new Dexie('HandyList');
-    connection.version(1).stores({ sessions: 'id', images: 'id' });
+    connection.version(2).stores({ sessions: 'id', images: 'id', lists: 'id, updatedAt' });
     try {
       await connection.open();
       const record = await connection.table<{ id: string; blob: Blob }>('images').get('current');

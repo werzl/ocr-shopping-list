@@ -18,5 +18,11 @@ export function reorderItems(items: ShoppingListItem[], source: number, target: 
 }
 
 export function itemCategory(item: ShoppingListItem): Category {
+  if (item.category === 'Eggs')
+    return 'Pantry';
+
+  if (item.category === 'Veg')
+    return 'Fruit & Veg';
+
   return item.category ?? classifyItem(item.name);
 }

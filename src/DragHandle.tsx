@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { startDragAutoScroll } from './dragAutoScroll';
 
 interface DropTarget {
   index: number;
@@ -14,9 +15,10 @@ interface Props {
 }
 
 export default function DragHandle({ name, disabled, onDrop, onStep }: Props) {
-  const gesture = useRef<{ x: number; y: number; started?: boolean; target?: DropTarget } | null>(null);
+  const gesture = useRef<{ x: number; y: number; point?: { x: number; y: number }; started?: boolean; target?: DropTarget } | null>(null);
   const [dragging, setDragging] = useState(false);
   const visual = useRef<{ source: HTMLElement; preview: HTMLElement; offsetX: number; offsetY: number } | null>(null);
+  const stopScroll = useRef<(() => void) | null>(null);
 
   function removeVisual() {
     visual.current?.source.classList.remove('drag-source');
@@ -25,15 +27,48 @@ export default function DragHandle({ name, disabled, onDrop, onStep }: Props) {
   }
 
   useEffect(() => () => {
+    stopScroll.current?.();
     removeVisual();
     document.querySelectorAll('.drop-before, .drop-after').forEach(row => row.classList.remove('drop-before', 'drop-after'));
   }, []);
 
   function clear() {
+    stopScroll.current?.();
+    stopScroll.current = null;
     removeVisual();
     gesture.current = null;
     setDragging(false);
     document.querySelectorAll('.drop-before, .drop-after').forEach(row => row.classList.remove('drop-before', 'drop-after'));
+  }
+
+  function updateTarget(list: HTMLElement, point: { x: number; y: number }) {
+    const current = gesture.current;
+    if (!current)
+      return;
+
+    document.querySelectorAll('.drop-before, .drop-after').forEach(row => row.classList.remove('drop-before', 'drop-after'));
+    let row = document.elementFromPoint(point.x, point.y)?.closest<HTMLElement>('[data-item-index]');
+    if (!row || !list.contains(row)) {
+      const bounds = list.getBoundingClientRect();
+      const rows = list.querySelectorAll<HTMLElement>('[data-item-index]');
+      const first = rows[0];
+      const last = rows[rows.length - 1];
+      row = undefined;
+      if (point.x >= bounds.left && point.x <= bounds.right) {
+        if (first && point.y <= first.getBoundingClientRect().top)
+          row = first;
+        else if (last && point.y >= last.getBoundingClientRect().bottom)
+          row = last;
+      }
+    }
+
+    current.target = undefined;
+    if (row && list.contains(row)) {
+      const bounds = row.getBoundingClientRect();
+      const after = point.y > bounds.top + bounds.height / 2;
+      current.target = { index: Number(row.dataset.itemIndex), after };
+      row.classList.add(after ? 'drop-after' : 'drop-before');
+    }
   }
 
   return <button type="button" className={`drag-handle${dragging ? ' dragging' : ''}`}
@@ -66,6 +101,7 @@ export default function DragHandle({ name, disabled, onDrop, onStep }: Props) {
         return;
 
       current.started = true;
+      current.point = { x: event.clientX, y: event.clientY };
       setDragging(true);
       if (!visual.current) {
         const source = event.currentTarget.closest<HTMLElement>('[data-item-index]');
@@ -98,23 +134,10 @@ export default function DragHandle({ name, disabled, onDrop, onStep }: Props) {
         floating.preview.style.top = `${event.clientY - floating.offsetY}px`;
       }
 
-      document.querySelectorAll('.drop-before, .drop-after').forEach(row => row.classList.remove('drop-before', 'drop-after'));
-      const row = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-item-index]');
-      current.target = undefined;
-      if (row) {
-        const bounds = row.getBoundingClientRect();
-        const after = event.clientY > bounds.top + bounds.height / 2;
-        current.target = { index: Number(row.dataset.itemIndex), after };
-        row.classList.add(after ? 'drop-after' : 'drop-before');
-      }
-
-      const list = event.currentTarget.closest('.shopping-list');
+      const list = event.currentTarget.closest<HTMLElement>('.shopping-list');
       if (list) {
-        const bounds = list.getBoundingClientRect();
-        const edge = Math.min(bounds.bottom, window.innerHeight) - 40;
-        const delta = event.clientY < Math.max(bounds.top, 0) + 40 ? -16 : event.clientY > edge ? 16 : 0;
-        list.scrollBy(0, delta);
-        window.scrollBy(0, delta);
+        updateTarget(list, current.point);
+        stopScroll.current ??= startDragAutoScroll(list, () => gesture.current?.point, point => updateTarget(list, point));
       }
     }}
     onPointerUp={event => {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import OpenAI from 'openai'
 import OpenAIWrapper from '../../src/openai/OpenAiWrapper'
 
 const { createMock, listMock } = vi.hoisted(() => ({
@@ -29,7 +30,20 @@ describe('OpenAIWrapper', () => {
     expect(() => new OpenAIWrapper()).toThrow('Api Key was not set')
   })
 
-  it('accepts an API key via constructor', () => {
+  it('ignores an environment key when no key is entered', () => {
+    vi.stubEnv('VITE_OpenAI_Api_Key', 'environment-sentinel')
+    expect(() => new OpenAIWrapper()).toThrow('Api Key was not set')
+    vi.unstubAllEnvs()
+  })
+
+  it('uses the entered key instead of an environment key', () => {
+    vi.stubEnv('VITE_OpenAI_Api_Key', 'environment-sentinel')
+    new OpenAIWrapper('entered-key')
+    expect(OpenAI).toHaveBeenLastCalledWith(expect.objectContaining({ apiKey: 'entered-key' }))
+    vi.unstubAllEnvs()
+  })
+
+  it('accepts an API key via constructor' , () => {
     expect(() => new OpenAIWrapper('sk-test')).not.toThrow()
   })
 

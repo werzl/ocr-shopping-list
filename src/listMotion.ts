@@ -4,6 +4,28 @@ export function motionEnabled() {
   return typeof matchMedia === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+export function popInList(list: HTMLElement): Animation | null {
+  if (!motionEnabled() || typeof list.animate !== 'function')
+    return null;
+
+  return list.animate([
+    { transform: 'scale(0.88)', opacity: 0 },
+    { transform: 'scale(1.025)', opacity: 1, offset: 0.7 },
+    { transform: 'scale(1)', opacity: 1 },
+  ], { duration: 260, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+}
+
+export function popOutList(list: HTMLElement): Animation | null {
+  if (!motionEnabled() || typeof list.animate !== 'function')
+    return null;
+
+  return list.animate([
+    { transform: 'scale(1)', opacity: 1 },
+    { transform: 'scale(1.025)', opacity: 1, offset: 0.2 },
+    { transform: 'scale(0.8)', opacity: 0 },
+  ], { duration: 180, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
+}
+
 export function popOutRow(row: HTMLElement): Animation | null {
   if (!motionEnabled() || typeof row.animate !== 'function')
     return null;

@@ -34,7 +34,8 @@ describe('category properties', () => {
   }
 
   const productFamilies = [
-    { category: 'Pantry', flavours: ['apple', 'orange', 'mango', 'strawberry', 'raspberry'], products: ['juice', 'jam'] },
+    { category: 'Soft drinks', flavours: ['apple', 'orange', 'mango', 'strawberry', 'raspberry'], products: ['juice'] },
+    { category: 'Pantry', flavours: ['apple', 'orange', 'mango', 'strawberry', 'raspberry'], products: ['jam'] },
     { category: 'Pantry', flavours: ['chicken', 'beef', 'vegetable', 'tomato'], products: ['stock', 'soup'] },
     { category: 'Pantry', flavours: ['ginger', 'butter', 'chocolate'], products: ['biscuits', 'cookies'] },
     { category: 'Dairy', flavours: ['strawberry', 'raspberry', 'mango'], products: ['yogurt', 'yoghurt'] },
