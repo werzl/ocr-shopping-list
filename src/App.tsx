@@ -3,8 +3,8 @@ import { ToastContainer, toast } from "react-toastify";
 import { Container, Row, Col, Navbar, Button, Spinner } from "react-bootstrap";
 import { categoryOrder } from './categories';
 import { itemCategory, reorderItems } from './reorderItems';
-import DragHandle from './DragHandle';
-import AnimatedDetails from './AnimatedDetails';
+import DragHandle from './components/DragHandle';
+import AnimatedDetails from './components/AnimatedDetails';
 import { animateRows, shrinkList, revealEmptyList, animateEditMode, popOutRow } from './listMotion';
 import { animateNavbar, captureNavbar, type NavbarPositions } from './navbarMotion';
 

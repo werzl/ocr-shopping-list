@@ -1,7 +1,7 @@
 import { createElement, act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import AnimatedDetails from '../../src/AnimatedDetails';
+import AnimatedDetails from '../../src/components/AnimatedDetails';
 import { animateRows, shrinkList, revealEmptyList, animateEditMode, popOutRow } from '../../src/listMotion';
 import '../../src/App.css';
 import { animateNavbar, captureNavbar } from '../../src/navbarMotion';

@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { motionEnabled, motionOptions } from './listMotion';
+import { motionEnabled, motionOptions } from '../listMotion';
 
 export default function AnimatedDetails({ children, className }: { children: ReactNode; className: string }) {
   const animation = useRef<Animation | null>(null);

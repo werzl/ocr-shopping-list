@@ -1,7 +1,7 @@
 import { createElement, act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import DragHandle from '../../src/DragHandle';
+import DragHandle from '../../src/components/DragHandle';
 import '../../src/App.css';
 
 it('floats the dragged row, hides its source, and cleans up mouse and touch moves', async () => {

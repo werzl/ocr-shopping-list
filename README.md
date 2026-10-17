@@ -26,6 +26,11 @@ With **Categorise** selected, moving an item to another group assigns that group
 The app saves the order and assigned categories. In edit mode, **Save** keeps moves and **Cancel** restores the previous list.
 
 ## Architecture
+
+Reusable React components live in `src/components/`. This folder contains `DragHandle` and `AnimatedDetails`.
+`src/App.tsx` manages the page and application state. Animation helpers remain in `src/listMotion.ts` and `src/navbarMotion.ts`.
+Browser tests live in `tests/browser/`.
+
 ```mermaid
 flowchart LR
     USER((User))
