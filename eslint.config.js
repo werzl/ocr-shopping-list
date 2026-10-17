@@ -18,10 +18,30 @@ export default tseslint.config(
       'react-refresh': reactRefresh,
     },
     rules: {
+      'nonblock-statement-body-position': ['error', 'below'],
+      'padding-line-between-statements': [
+        'error',
+        { blankLine: 'always', prev: 'if', next: '*' },
+        { blankLine: 'always', prev: 'multiline-const', next: '*' },
+        { blankLine: 'always', prev: '*', next: 'return' },
+      ],
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
+      ],
+    },
+  },
+  {
+    files: [
+      '**/*.{test,spec}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}',
+      '**/__tests__/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}',
+    ],
+    ignores: ['tests/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        { selector: 'Program', message: 'Keep all tests in the repository-root tests/ directory.' },
       ],
     },
   },

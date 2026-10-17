@@ -3,7 +3,6 @@ import { ToastContainer, toast } from "react-toastify";
 import { Row, Col, Card, Navbar, Button } from "react-bootstrap";
 
 import notepadLogo from "./assets/notepad.png";
-import placeholder from "./assets/placeholder.png";
 import OpenAiWrapper from "./openai/OpenAiWrapper";
 import LeftIcon from "./assets/arrow-left-solid-full.svg?react";
 import PhotoIcon from "./assets/photo-film-solid-full.svg?react";
@@ -13,68 +12,123 @@ import PinchIcon from "./assets/pinch-to-zoom.svg?react";
 
 import "./App.css";
 
-interface ShoppingListItem {
-  name: string;
-  checked: boolean;
-}
+import { loadSession, saveSession, isStorageFull, type ShoppingListItem } from './storage';
 
-const shoppingListStorageKey = "shoppingList";
-const base64ImageStorageKey = "base64Image";
-const placeholderStorageValue = "placeholder";
-const base64FileNameStorageKey = "base64FileName";
+import { compressImage } from './compressImage';
 
 const appVersion = __APP_VERSION__; // Injected at build time from vite.config.ts
 
+function imageToDataUrl(image: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Could not read image'));
+      }
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read image'));
+    reader.readAsDataURL(image);
+  });
+}
+
 function App() {
-  const [base64ImageFileName, setBase64ImageFileName] = useState(() => {
-    const storageFileName = localStorage.getItem(base64FileNameStorageKey);
-    return storageFileName ? storageFileName : "";
-  });
+  const [imageFileName, setImageFileName] = useState('');
+  const [image, setImage] = useState<Blob | null>(null);
+  const originalImage = useRef<File | null>(null);
+  const savedImage = useRef<Blob | null>(null);
+  const [shoppingList, setShoppinglist] = useState<ShoppingListItem[]>([]);
+  const [imageUrl, setImageUrl] = useState('');
+  const [storageReady, setStorageReady] = useState(false);
+  const [storageError, setStorageError] = useState('');
+  const [saveRetry, setSaveRetry] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const saveVersion = useRef(0);
+  const saveQueue = useRef(Promise.resolve());
 
-  const [base64Image, setBase64Image] = useState(() => {
-    const storageImage = localStorage.getItem(base64ImageStorageKey);
-    return storageImage ? storageImage : "";
-  });
-
-  const [shoppingList, setShoppinglist] = useState<ShoppingListItem[]>(() => {
-    const storageShoppingList = localStorage.getItem(shoppingListStorageKey);
-    return storageShoppingList ? JSON.parse(storageShoppingList) as ShoppingListItem[] : [];
-  });
-
-  const [imageUrl, setImageUrl] = useState("");
-
+  const [isPreparingImage, setIsPreparingImage] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [apiKeyConfirmed, setApiKeyConfirmed] = useState(false);
+
+  const isBusy = isLoading || isPreparingImage;
 
   const shoppingListRef = useRef<HTMLDivElement>(null);
   const openAiWrapper = useRef<OpenAiWrapper | null>(null);
   const inputFileButtonRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    localStorage.setItem(shoppingListStorageKey, JSON.stringify(shoppingList));
-  }, [shoppingList]);
+    let active = true;
+    void loadSession().then(session => {
+      if (!active)
+        return;
+
+      setShoppinglist(session.shoppingList);
+      setImage(session.image);
+      savedImage.current = session.image;
+      setImageFileName(session.fileName);
+
+      setStorageReady(true);
+    }).catch((error: unknown) => {
+      if (active)
+        setStorageError(isStorageFull(error)
+        ? 'Browser storage is full. Free some browser storage, then reload to retry. Existing data has been kept.'
+        : 'Could not load saved data. Reload to retry; existing data has been kept.');
+    });
+
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(base64ImageStorageKey, base64Image);
-    }
-    catch (e) {
-      console.error(e);
-      localStorage.setItem(base64ImageStorageKey, placeholderStorageValue);
-    }
-  }, [base64Image]);
+    if (!storageReady)
+      return;
+
+    const version = ++saveVersion.current;
+    setIsSaving(true);
+    const session = { id: 'current' as const, shoppingList, ...(image ? { imageId: 'current' as const } : {}), fileName: imageFileName };
+    // Serialize snapshots so a stale write cannot overwrite a later edit.
+    saveQueue.current = saveQueue.current.then(async () => {
+      if (image === savedImage.current) {
+        await saveSession(session);
+      } else {
+        await saveSession(session, image);
+        savedImage.current = image;
+      }
+    }).then(() => {
+      if (version === saveVersion.current)
+        setStorageError('');
+    }).catch((error: unknown) => {
+      if (version !== saveVersion.current)
+        return;
+
+      setStorageError(isStorageFull(error)
+        ? 'Browser storage is full. Your latest changes are only in this open page. Upload a smaller image or free some browser storage, then retry saving. Reloading may lose unsaved changes.'
+        : 'Could not save changes. Keep this page open and retry saving.');
+    }).finally(() => {
+      if (version === saveVersion.current)
+        setIsSaving(false);
+    });
+  }, [storageReady, shoppingList, image, imageFileName, saveRetry]);
 
   useEffect(() => {
-    localStorage.setItem(base64FileNameStorageKey, base64ImageFileName);
-  }, [base64ImageFileName]);
+    if (!image) {
+      setImageUrl('');
+
+      return;
+    }
+
+    const url = URL.createObjectURL(image);
+    setImageUrl(url);
+
+    return () => URL.revokeObjectURL(url);
+  }, [image]);
 
   useEffect(() => {
     function beforeunload(e: BeforeUnloadEvent) {
-      if (imageUrl && shoppingList.length === 0) {
+      if ((image && shoppingList.length === 0) || isPreparingImage || isSaving || (storageReady && storageError)) {
         e.preventDefault();
         e.returnValue = true;
-        window.confirm();
       }
     }
 
@@ -83,17 +137,17 @@ function App() {
     return () => {
       window.removeEventListener('beforeunload', beforeunload);
     }
-  }, [imageUrl, shoppingList]);
+  }, [image, shoppingList.length, isPreparingImage, isSaving, storageReady, storageError]);
 
   async function processImage() {
-    if (!openAiWrapper.current) {
+    if (!openAiWrapper.current || !image) {
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const commaSeparated = await openAiWrapper.current.recogniseHandwriting(imageUrl);
+      const commaSeparated = await openAiWrapper.current.recogniseHandwriting(await imageToDataUrl(originalImage.current ?? image));
       const array = commaSeparated.split(',');
       const shoppingListObjects = array.map((v) => {
         return {
@@ -124,52 +178,36 @@ function App() {
   }
 
   async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
-    handleClear();
-
     const file = e.target.files?.[0];
+    if (!file)
+      return;
 
     // Clear the file input so that the same file can be uploaded again if needed without having to manually clear the input
     if (inputFileButtonRef.current) {
       inputFileButtonRef.current.value = "";
     }
 
+    setIsPreparingImage(true);
     try {
-      if (!file)
-        throw new Error("File was empty");
-
-      const reader = new FileReader();
-
-      reader.onloadend = async () => {
-        const result = reader.result;
-
-        if (typeof result !== "string") {
-          errorToast("Error with image upload");
-          return;
-        }
-
-        const base64String = `data:${file.type};base64,${result.split(",")[1]}`;
-        setBase64ImageFileName(file.name);
-        setBase64Image(result);
-        setImageUrl(base64String);
-
-        console.log("Image uploaded successfully", file.name);
-      };
-
-      reader.readAsDataURL(file);
-    }
-    catch (e) {
-      console.error(e);
-      errorToast("Error with image upload");
+      const compressed = await compressImage(file);
+      originalImage.current = file;
+      setShoppinglist([]);
+      setImageFileName(file.name);
+      setImage(compressed);
+    } catch (error) {
+      errorToast(error instanceof Error ? error.message : 'Could not prepare this image. Try a different photo.');
+    } finally {
+      setIsPreparingImage(false);
     }
   }
 
   function handleClear() {
-    setImageUrl("");
+    originalImage.current = null;
     setShoppinglist([]);
-    setBase64ImageFileName("");
-    setBase64Image("");
+    setImageFileName("");
+    setImage(null);
     setIsLoading(false);
-    localStorage.removeItem(shoppingListStorageKey);
+
   }
 
   function handleApiKeyConfirmation() {
@@ -180,6 +218,7 @@ function App() {
     catch (e) {
       console.error(e);
       errorToast("Invalid API Key");
+
       return;
     }
 
@@ -189,7 +228,6 @@ function App() {
   function handleBack() {
     openAiWrapper.current = null;
 
-    handleClear();
     setApiKey("");
     setApiKeyConfirmed(false);
   }
@@ -207,9 +245,9 @@ function App() {
     });
   }
 
-  function handleCheck(name: string, checked: boolean) {
-    const newList = shoppingList.map(item =>
-      item.name === name ? { ...item, checked } : item
+  function handleCheck(index: number, checked: boolean) {
+    const newList = shoppingList.map((item, itemIndex) =>
+      itemIndex === index ? { ...item, checked } : item
     );
 
     setShoppinglist(newList);
@@ -223,6 +261,10 @@ function App() {
                 <h2><img src={notepadLogo} className="logo" alt="Notepad logo" /> HandyList {appVersion}</h2>
             </div>
 
+            {isPreparingImage && <p role="status">Preparing image...</p>}
+            {storageError && <p role="alert">{storageError}</p>}
+            {storageError && storageReady && <Button onClick={() => setSaveRetry(value => value + 1)}>Retry save</Button>}
+            {!storageReady && !storageError && <p role="status">Loading saved list...</p>}
             {!apiKeyConfirmed &&
               <div className="div">
                 <form className="mt-3 text-center" >
@@ -233,7 +275,7 @@ function App() {
 
                   <br /><br />
 
-                  <Button variant="outline-primary" onClick={() => handleApiKeyConfirmation()}>
+                  <Button disabled={!storageReady} variant="outline-primary" onClick={() => handleApiKeyConfirmation()}>
                     Submit
                   </Button>
                 </form>
@@ -242,9 +284,9 @@ function App() {
 
             {apiKeyConfirmed &&
               <>
-                {base64Image &&
+                {image &&
                   <div className="uploaded-image-container">
-                    <p><img src={base64Image === placeholderStorageValue ? placeholder : base64Image} className="uploaded-image" /> <small className="fw-lighter fst-italic">Zoom in to see me! <PinchIcon /></small></p>
+                    <p><img src={imageUrl || undefined} className="uploaded-image" alt={imageFileName || "Uploaded shopping list"} /> <small className="fw-lighter fst-italic">Zoom in to see me! <PinchIcon /></small></p>
 
                   </div>
                 }
@@ -252,13 +294,13 @@ function App() {
                 <div className="shopping-list" ref={shoppingListRef}>
                   {shoppingList.length > 0 &&
                     <>
-                      {shoppingList.map(item => {
-                        const key = Math.random();
+                      {shoppingList.map((item, index) => {
+                        const key = `shopping-item-${index}`;
 
                         return (
                           <div className="checkbox-wrapper-52" key={key + "-" + item.name}>
                             <label htmlFor={String(key)} className="item">
-                              <input type="checkbox" id={String(key)} className="hidden" checked={item.checked} onChange={(e) => handleCheck(item.name, e.target.checked)} />
+                              <input type="checkbox" id={String(key)} className="hidden" checked={item.checked} onChange={(e) => handleCheck(index, e.target.checked)} />
 
                               <label htmlFor={String(key)} className="cbx">
                                 <svg width="14px" height="12px" viewBox="0 0 14 12">
@@ -273,7 +315,7 @@ function App() {
                     </>
                   }
 
-                  {shoppingList.length === 0 && base64Image === "" &&
+                  {shoppingList.length === 0 && !image &&
                     <Card bg="light" text="dark" className="mt-5 text-start">
                       <Card.Header className="border-bottom">Upload an image</Card.Header>
                       <Card.Body>
@@ -295,7 +337,7 @@ function App() {
         <Navbar fixed="bottom" className="app-nav-bar justify-content-center">
           <Row>
             <Col>
-              <button className="nav-button" onClick={() => handleBack()} disabled={isLoading}>
+              <button className="nav-button" onClick={() => handleBack()} disabled={isBusy}>
                 <LeftIcon />
               </button>
 
@@ -311,7 +353,7 @@ function App() {
             </Col>
 
             <Col>
-              <button className={`nav-button ${isLoading ? "loading" : ""}`} onClick={async () => await processImage()} disabled={isLoading || shoppingList.length > 0 || !imageUrl}>
+              <button className={`nav-button ${isLoading ? "loading" : ""}`} onClick={async () => await processImage()} disabled={isBusy || shoppingList.length > 0 || !imageUrl}>
                 {!isLoading && <PlayIcon />}
                 {isLoading && <div className="loader"></div>}
               </button>

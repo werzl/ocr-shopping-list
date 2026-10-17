@@ -9,11 +9,14 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "npm run test:unit && npm run test:browser",
+    "test:unit": "vitest run --config vite.config.ts",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:browser:install": "playwright install chromium"
   },
-
   "dependencies": {
     "bootstrap": "^5.3.8",
+    "dexie": "^4.4.6",
     "openai": "^4.98.0",
     "react": "^19.1.0",
     "react-bootstrap": "^2.10.10",
@@ -30,11 +33,13 @@
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",
+    "@vitest/browser": "3.2.7",
     "eslint": "^9.25.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
     "jsdom": "^26.1.0",
+    "playwright": "1.61.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2",
     "vite": "^6.3.5",
