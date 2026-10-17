@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { classifyItem } from '../src/categories';
 
 describe('category classification', () => {
+  it.each(['Boursin', 'Parmesan', 'BOURSIN', 'grated parmesan'])('classifies cheese keyword %s as Dairy', name => {
+    expect(classifyItem(name)).toBe('Dairy');
+  });
+
   it.each([
     ['2 Apples', 'Fruit & Veg'], ['Tomatoes', 'Veg'], ['milk', 'Dairy'],
     ['chicken', 'Meat'], ['salmon', 'Seafood'], ['rice', 'Pantry'],

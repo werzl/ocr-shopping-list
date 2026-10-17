@@ -71,6 +71,69 @@ function getNavButton(label: string) {
 }
 
 describe('App', () => {
+  it('shows the placeholder and saves an empty list after Clear', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [
+      { name: 'milk', checked: false },
+    ], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    await user.click(getNavButton('Clear'))
+    expect(screen.queryByRole('checkbox', { name: 'milk' })).not.toBeInTheDocument()
+    expect(screen.getByText('Add your first item and get ready for your next shop.')).toBeVisible()
+    expect(getNavButton('Add item')).toBeEnabled()
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith({ id: 'current', shoppingList: [], fileName: '' }))
+  })
+
+  it('restores assigned categories and reorders an uncategorised list', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', categories: true, shoppingList: [
+      { name: 'apple', checked: true, category: 'Dairy' }, { name: 'milk', checked: false },
+    ], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    expect(screen.getAllByRole('heading', { level: 4 }).map(heading => heading.textContent)).toEqual(['Dairy'])
+    await user.click(screen.getByRole('checkbox', { name: 'Categorise' }))
+    expect(screen.queryByRole('button', { name: 'Move apple' })).not.toBeInTheDocument()
+    await user.click(getNavButton('Edit'))
+    screen.getByRole('button', { name: 'Move apple' }).focus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getAllByRole('textbox').map(input => (input as HTMLInputElement).value)).toEqual(['milk', 'apple'])
+    await user.click(getNavButton('Save'))
+    expect(screen.queryByRole('button', { name: 'Move apple' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('checkbox').slice(1).map(input => input.getAttribute('aria-label'))).toEqual(['milk', 'apple'])
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ shoppingList: [
+      { name: 'milk', checked: false }, { name: 'apple', checked: true, category: 'Dairy' },
+    ] })))
+  })
+
+  it('moves rows with the keyboard and saves category overrides', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', categories: true, shoppingList: [
+      { name: 'apple', checked: true }, { name: 'milk', checked: false }, { name: 'cheese', checked: false },
+    ], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    expect(screen.queryByRole('button', { name: 'Move apple' })).not.toBeInTheDocument()
+    await user.click(getNavButton('Edit'))
+    screen.getByRole('button', { name: 'Move apple' }).focus()
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    expect(screen.getAllByRole('textbox').map(input => (input as HTMLInputElement).value)).toEqual(['milk', 'cheese', 'apple'])
+    expect(screen.getByRole('button', { name: 'Move apple' })).toHaveFocus()
+    await user.click(getNavButton('Save'))
+    expect(screen.queryByRole('button', { name: 'Move apple' })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'apple' })).toBeChecked()
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ shoppingList: [
+      { name: 'milk', checked: false }, { name: 'cheese', checked: false }, { name: 'apple', checked: true, category: 'Dairy' },
+    ] })))
+    await user.click(getNavButton('Edit'))
+    screen.getByRole('button', { name: 'Move apple' }).focus()
+    await user.keyboard('{ArrowUp}')
+    await user.click(getNavButton('Cancel'))
+    expect(screen.queryByRole('button', { name: 'Move apple' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('checkbox').slice(1).map(input => input.getAttribute('aria-label'))).toEqual(['milk', 'cheese', 'apple'])
+  })
+
   it('shows Frozen and Ready Meals category headings for ice and prepared food', async () => {
     vi.mocked(loadSession).mockResolvedValue({ id: 'current', categories: true, shoppingList: [
       { name: 'Pizza', checked: false }, { name: 'ICE', checked: false },

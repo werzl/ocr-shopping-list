@@ -1,5 +1,13 @@
 # Repository instructions for Codex
 
+# GitHub authentication for pull requests
+
+Adam authorizes use of the existing GitHub credential from Git Credential Manager for PR operations in `werzl/ocr-shopping-list`.
+Use this authentication when the GitHub connector lacks the required permission. No further credential-use confirmation is necessary for this repository.
+This permission covers authentication for PR operations that Adam requests. It does not authorize unrelated GitHub actions.
+Keep the credential in process memory only. Never print it or save it in files, logs, commits, or PR descriptions.
+Platform approval checks still apply. Do not bypass an approval rejection.
+
 # Branch before changes
 
 When Adam asks for a code or config change, start on a fresh branch from latest `master`. Do this before you edit files.

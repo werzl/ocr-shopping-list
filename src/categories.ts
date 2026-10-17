@@ -22,7 +22,7 @@ const rules: [Category, RegExp][] = [
   ['Alcohol', /\b(beer|wine|lager|cider|vodka|gin|rum|whisk(?:y|ey)|prosecco|champagne|brandy|tequila)\b/],
   ['Seafood', /\b(fish|salmon|tuna|cod|haddock|prawns?|shrimps?|crabs?|mussels?|sardines?|mackerel|trout|squid|scallops?)\b/],
   ['Meat', /\b(chicken|beef|pork|lamb|turkey|bacon|ham|pepperoni|sausages?|mince|steaks?|chops?|meatballs?)\b/],
-  ['Dairy', /\b(milk|cheese|butter|yogh?urts?|cream|eggs?|cheddar|mozzarella|feta|halloumi)\b/],
+  ['Dairy', /\b(milk|cheese|butter|yogh?urts?|cream|eggs?|cheddar|mozzarella|feta|halloumi|boursin|parmesan)\b/],
   ['Bakery', /\b(bread|rolls?|bagels?|croissants?|buns?|baguettes?|cakes?|muffins?|wraps?|crumpets?|pittas?|sourdough|scones?)\b/],
   ['Fruit & Veg', /\bfruit salads?\b/],
   ['Veg', /\b(salads?|lettuce|tomato(?:es)?|cucumbers?|carrots?|potato(?:es)?|onions?|broccoli|spinach|cabbage|peas|peppers?|courgettes?|aubergines?|mushrooms?|garlic|ginger|vegetables?|veg|celery|cauliflower|leeks?|sweetcorn|beetroots?|asparagus|kale|green beans)\b/],

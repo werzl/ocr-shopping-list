@@ -1,8 +1,10 @@
 import Dexie, { type Table } from 'dexie';
+import type { Category } from './categories';
 
 export interface ShoppingListItem {
   name: string;
   checked: boolean;
+  category?: Category;
 }
 
 export interface SavedSession {
