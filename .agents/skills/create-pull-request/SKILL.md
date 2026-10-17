@@ -14,15 +14,9 @@ Read the root AGENTS.md and `.github/PULL_REQUEST_TEMPLATE.md` before preparing 
 - For an existing change, use its existing branch. Follow AGENTS.md's branch workflow when starting implementation of a new change.
 - Before creating a commit, use the repository's `pre-commit-checks` skill at `.agents/skills/pre-commit-checks/SKILL.md`. Do not commit if its quality gate fails. Follow the dependency approval policy if a check requires a package change.
 
-## Capture screenshots
+## Optional screenshots
 
-- For every PR, identify the UI areas and user flows affected by the full diff and take screenshots of their final behavior before publishing. For changes with no visible UI impact, keep the Screenshots section and explain why screenshots are not applicable.
-- Start the app with `npm run dev` from the repository root and use the URL Vite reports. Assume the OpenAI API key is supplied by the existing env file (normally `.env.development`, variable `VITE_OpenAI_Api_Key`). Let Vite load it; do not print, copy, commit, or expose the key in logs, images, or PR content. If configuration is missing, report the missing variable name without requesting the secret in chat.
-- Use available browser automation or screenshot tooling; check what is already installed before selecting it. Do not install dependencies or run an npx command that would download packages without the explicit approval required by AGENTS.md.
-- Exercise the affected flows with non-sensitive sample data. When OCR is affected, submit a sample shopping-list image using the configured API and capture the rendered result. Capture relevant loading, success, error, and interaction states as appropriate to the change. Use desktop and mobile viewports for layout changes; include matching before/after views when they help explain the change.
-- Inspect every captured image for correct rendering, useful framing, and exposed secrets or personal information. Save artifacts outside ignored build output and env files. Stop any server started for this capture after finishing.
-- Embed actual images with descriptive captions in the template's Screenshots section. Use image attachments supported by the available GitHub tooling, or commit only the reviewed screenshot files under `docs/screenshots/` and embed links that resolve from the PR head commit. Local filesystem paths are not valid PR image links. Check that each image is accessible to reviewers.
-- If capture or upload is blocked, report the specific blocker and leave Screenshots explicitly marked incomplete. Do not silently omit screenshots, substitute generated mockups, claim a capture succeeded, or claim a real API flow passed when only a mock was used.
+Screenshots are optional and do not block PR creation. Capture them only when requested or useful to explain a visual change. If included, inspect them for secrets and personal information, embed reviewer-accessible images with captions, and accurately describe what was verified. Remove the template's Screenshots section when no images are included.
 
 ## Write the PR
 

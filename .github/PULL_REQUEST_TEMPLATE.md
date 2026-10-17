@@ -10,5 +10,5 @@
 - [ ] `npm run dev` starts cleanly
 - [ ] <!-- feature-specific manual check -->
 
-## Screenshots
-<!-- Capture the affected UI areas from the final change and embed the images below with captions. Include before/after views when useful and desktop/mobile views when layout is affected. For changes with no visible UI impact, explain why screenshots are not applicable. If capture is blocked, state the blocker explicitly. -->
+## Screenshots (optional)
+<!-- Include captioned screenshots when useful for visual changes. Remove this section when not needed. -->

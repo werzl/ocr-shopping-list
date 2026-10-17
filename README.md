@@ -65,7 +65,7 @@ Repository rules live in `AGENTS.md`. Codex discovers the local `pre-commit-chec
 ### Pull requests
 New PRs use the template in `.github/PULL_REQUEST_TEMPLATE.md` (Summary, Test plan, and Screenshots). Fill the checklist with the scripts above plus any feature-specific checks. Use `$create-pull-request` to follow the workflow in `.agents/skills/create-pull-request/SKILL.md`.
 
-For each PR, run the app with `npm run dev` from the repository root and capture the affected UI areas using available browser automation or screenshot tooling. Vite loads the OpenAI API key from the env file described above; keep its value out of screenshots and PR content. Capture the final behavior, including desktop/mobile views for layout changes, inspect the images, and embed them in the PR with captions. For changes with no visible UI impact, explain that in Screenshots; if capture is blocked, document the blocker. Installing new screenshot tooling requires approval under `AGENTS.md`.
+Screenshots are optional. Include captioned images when requested or useful to explain visual changes; otherwise remove the Screenshots section. Keep API keys and personal information out of captured images. Installing new screenshot tooling requires approval under `AGENTS.md`.
 
 ### NGROK
 To test over the internet using NGROK, the vite config needs to be updated to allow NGROK's host.
