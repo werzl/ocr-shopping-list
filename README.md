@@ -10,7 +10,7 @@ A small app I use often.
 
 Select **Categorise** to group items under category headings.
 You can change the option when the list is empty or contains items. The app shows only categories that contain items.
-Clear **Categorise** to restore the original item order. Item names and checked states stay the same.
+Clear **Categorise** to show items in their saved list order. Item names and checked states stay the same.
 The control is temporarily disabled while you edit, add an item, or process a photo.
 
 Local keyword rules classify manual items and photo results without extra API requests. Unrecognised items appear under **Other**.
@@ -18,6 +18,12 @@ Fruit appears under **Fruit & Veg**. Vegetables appear under **Veg**. The app sa
 **Ready Meals** includes pizza, ready meals, and lasagne. Ice appears under **Frozen**. An explicit **frozen** label takes priority over **Ready Meals**.
 To extend the rules, edit `src/categories.ts`. Keep specific phrases before general food names.
 The rules normalise whitespace and dash separators. They also distinguish phrases such as **baby spinach**, **peanut butter**, and **wine vinegar**.
+
+Select **Edit** to show the six-dot handles. Drag a handle to move one item before or after another item.
+Mouse and touch controls use the same handle.
+For keyboard control, focus the handle. Press **Arrow Up** or **Arrow Down** to move the item one row.
+With **Categorise** selected, moving an item to another group assigns that group's category to the item.
+The app saves the order and assigned categories. In edit mode, **Save** keeps moves and **Cancel** restores the previous list.
 
 ## Architecture
 ```mermaid
@@ -85,20 +91,25 @@ New PRs use the template in `.github/PULL_REQUEST_TEMPLATE.md` (Summary, Test pl
 Screenshots are optional. Include captioned images when requested or useful to explain visual changes; otherwise remove the Screenshots section. Keep API keys and personal information out of captured images. Installing new screenshot tooling requires approval under `AGENTS.md`.
 
 ### NGROK
-To test over the internet using NGROK, the vite config needs to be updated to allow NGROK's host.
+Use `$phone-test-ngrok` to start phone testing with Codex. Read the [repository skill](.agents/skills/phone-test-ngrok/SKILL.md) for the complete workflow.
+The skill checks the public URL and can provide a QR code. Say **done testing** to close its tunnel and stop its test server.
 
-Add the following to `vite.config.ts` (or the active Vite config):
+For manual testing, start Vite from the repository root:
 
-```ts
-server: {
-	hmr: {
-		clientPort: 443,
-	},
-	allowedHosts: [
-		".ngrok-free.app"
-	]
-},
+```powershell
+npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
+
+Start ngrok in a second terminal:
+
+```powershell
+ngrok http http://127.0.0.1:5173 --host-header=localhost --log=stdout
+```
+
+These commands require installed project dependencies and an authenticated ngrok installation.
+The host-header option avoids temporary changes to `vite.config.ts`.
+Open the HTTPS URL from ngrok with `/ocr-shopping-list/` appended. If ngrok shows a warning page, select **Visit Site**.
+After testing, press **Ctrl+C** in the ngrok terminal to close the tunnel. Stop the test server with **Ctrl+C**.
 
 ## Saved data
 

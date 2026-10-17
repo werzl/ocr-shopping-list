@@ -1,7 +1,11 @@
-import { Fragment, useState, useRef, useEffect, type ChangeEvent } from "react";
+import { Fragment, useState, useRef, useEffect, useLayoutEffect, type ChangeEvent } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import { Container, Row, Col, Navbar, Button, Spinner } from "react-bootstrap";
-import { categoryOrder, classifyItem } from './categories';
+import { categoryOrder } from './categories';
+import { itemCategory, reorderItems } from './reorderItems';
+import DragHandle from './DragHandle';
+import AnimatedDetails from './AnimatedDetails';
+import { animateRows, shrinkList, revealEmptyList } from './listMotion';
 
 import notepadLogo from "./assets/notepad.png";
 import OpenAiWrapper from "./openai/OpenAiWrapper";
@@ -43,6 +47,8 @@ function App() {
   const savedImage = useRef<Blob | null>(null);
   const [shoppingList, setShoppinglist] = useState<ShoppingListItem[]>([]);
   const [categories, setCategories] = useState(false);
+  const [moveMessage, setMoveMessage] = useState('');
+  const itemKeys = useRef(new WeakMap<ShoppingListItem, string>());
   const [imageUrl, setImageUrl] = useState('');
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState('');
@@ -56,9 +62,30 @@ function App() {
   const [apiKey, setApiKey] = useState("");
   const [apiKeyConfirmed, setApiKeyConfirmed] = useState(false);
 
-  const isBusy = isLoading || isPreparingImage;
+  const [isClearing, setIsClearing] = useState(false);
+  const isBusy = isLoading || isPreparingImage || isClearing;
+  const clearAnimation = useRef<Animation | null>(null);
+  const revealAfterClear = useRef(false);
+
+  useEffect(() => () => clearAnimation.current?.cancel(), []);
 
   const shoppingListRef = useRef<HTMLDivElement>(null);
+  const rowPositions = useRef<Map<string, DOMRect> | null>(null);
+
+  useLayoutEffect(() => {
+    if (revealAfterClear.current && shoppingListRef.current) {
+      clearAnimation.current?.cancel();
+      clearAnimation.current = null;
+      revealAfterClear.current = false;
+      shoppingListRef.current.scrollTop = 0;
+      revealEmptyList(shoppingListRef.current);
+    }
+
+    if (shoppingListRef.current && rowPositions.current)
+      animateRows(shoppingListRef.current, rowPositions.current);
+
+    rowPositions.current = null;
+  }, [shoppingList]);
   const openAiWrapper = useRef<OpenAiWrapper | null>(null);
   const inputFileButtonRef = useRef<HTMLInputElement>(null);
 
@@ -131,7 +158,7 @@ function App() {
 
   useEffect(() => {
     function beforeunload(e: BeforeUnloadEvent) {
-      if (isEditing || newItem !== null || isLoading || isPreparingImage || isSaving || (storageReady && storageError)) {
+      if (isEditing || newItem !== null || isLoading || isPreparingImage || isClearing || isSaving || (storageReady && storageError)) {
         e.preventDefault();
         e.returnValue = true;
       }
@@ -142,7 +169,7 @@ function App() {
     return () => {
       window.removeEventListener('beforeunload', beforeunload);
     }
-  }, [isEditing, newItem, isLoading, isPreparingImage, isSaving, storageReady, storageError]);
+  }, [isEditing, newItem, isLoading, isPreparingImage, isClearing, isSaving, storageReady, storageError]);
 
   async function processImage(source: Blob) {
     if (!openAiWrapper.current) {
@@ -258,7 +285,26 @@ function App() {
     setNewItem(null);
   }
 
-  function handleClear() {
+  async function handleClear() {
+    if (isBusy || isEditing)
+      return;
+
+    const list = shoppingListRef.current;
+    if (list && (shoppingList.length > 0 || newItem !== null || image)) {
+      clearAnimation.current = shrinkList(list);
+      if (clearAnimation.current) {
+        setIsClearing(true);
+        try {
+          await clearAnimation.current.finished;
+        } catch {
+          return;
+        }
+      }
+
+      revealAfterClear.current = true;
+    }
+
+    setIsClearing(false);
     setNewItem(null);
     setShoppinglist([]);
     setImageFileName("");
@@ -304,13 +350,48 @@ function App() {
 
   function handleCheck(index: number, checked: boolean) {
     const newList = shoppingList.map((item, itemIndex) =>
-      itemIndex === index ? { ...item, checked } : item
+      itemIndex === index ? updateItem(item, { checked }) : item
     );
 
     setShoppinglist(newList);
   }
 
-  const displayItems = shoppingList.map((item, index) => ({ item, index, category: classifyItem(item.name) }));
+  function updateItem(item: ShoppingListItem, changes: Partial<ShoppingListItem>) {
+    const updated = { ...item, ...changes };
+    const key = itemKeys.current.get(item);
+    if (key)
+      itemKeys.current.set(updated, key);
+
+    return updated;
+  }
+
+  function moveItem(source: number, target: number, after: boolean, landing?: DOMRect) {
+    if (!isEditing || isBusy || newItem !== null)
+      return;
+
+    const positions = new Map<string, DOMRect>();
+    shoppingListRef.current?.querySelectorAll<HTMLElement>('[data-item-key]').forEach(row => {
+      positions.set(row.dataset.itemKey!, row.getBoundingClientRect());
+      row.getAnimations?.().forEach(animation => animation.cancel());
+    });
+    const sourceKey = itemKeys.current.get(shoppingList[source]);
+    if (landing && sourceKey)
+      positions.set(sourceKey, landing);
+
+    rowPositions.current = positions;
+    setShoppinglist(items => {
+      const result = reorderItems(items, source, target, after, categories ? itemCategory(items[target]) : undefined);
+      const movedIndex = source === target ? source : target - Number(source < target) + Number(after);
+      const key = itemKeys.current.get(items[source]);
+      if (key)
+        itemKeys.current.set(result[movedIndex], key);
+
+      return result;
+    });
+    setMoveMessage(`Moved ${shoppingList[source].name}${categories ? ` to ${itemCategory(shoppingList[target])}` : ''}.`);
+  }
+
+  const displayItems = shoppingList.map((item, index) => ({ item, index, category: itemCategory(item) }));
   if (categories) {
     displayItems.sort((a, b) => categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category));
   }
@@ -360,27 +441,39 @@ function App() {
                 </label>
               </Col>
               {image && <Col xs={12}>
-                <details className="source-photo">
+                <AnimatedDetails className="source-photo">
                   <summary>
                     <img src={imageUrl || undefined} className="uploaded-image" alt={imageFileName || 'Uploaded shopping list'} />
                     <span className="source-photo-label"><strong>Uploaded photo</strong><small>{imageFileName || 'View photo'}</small></span>
                     <svg className="source-photo-chevron" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                   </summary>
                   <img src={imageUrl || undefined} className="source-photo-full" alt="Full source photo" />
-                </details>
+                </AnimatedDetails>
               </Col>}
 
               <Col xs={12} className="shopping-list-panel" role="region" aria-label="Shopping list" aria-busy={isBusy}>
+                <p className="visually-hidden" aria-live="polite" aria-atomic="true">{moveMessage}</p>
                 <div className={`shopping-list${isEditing ? ' shopping-list-editing' : ''}${shoppingList.length === 0 && newItem === null ? ' shopping-list-empty' : ''}`} ref={shoppingListRef} tabIndex={0} inert={isBusy}>
                   {shoppingList.length > 0 &&
                     <>
                       {displayItems.map(({ item, index, category }, position) => {
-                        const key = `shopping-item-${index}`;
+                        let key = itemKeys.current.get(item);
+                        if (!key) {
+                          key = crypto.randomUUID();
+                          itemKeys.current.set(item, key);
+                        }
 
                         return (
                           <Fragment key={key}>
                           {categories && (position === 0 || displayItems[position - 1].category !== category) && <h4 className="mt-3 mb-2">{category}</h4>}
-                          <div className={isEditing ? "item-editor" : "checkbox-wrapper-52"}>
+                          <div data-item-index={index} data-item-key={key} className={isEditing ? "item-editor" : "checkbox-wrapper-52"}>
+                            {isEditing && <DragHandle name={item.name || `item ${index + 1}`} disabled={isBusy || newItem !== null}
+                              onDrop={({ index: target, after, landing }) => moveItem(index, target, after, landing)}
+                              onStep={direction => {
+                                const target = displayItems[position + direction];
+                                if (target)
+                                  moveItem(index, target.index, direction > 0);
+                              }} />}
                             {!isEditing && <label htmlFor={String(key)} className="item">
                               <input type="checkbox" id={String(key)} className="hidden" checked={item.checked} disabled={isEditing || isBusy} aria-label={item.name || `Item ${index + 1}`} onChange={(e) => handleCheck(index, e.target.checked)} />
 
@@ -398,7 +491,7 @@ function App() {
                                 aria-label={`Item ${index + 1} name`}
                                 className="form-control"
                                 value={item.name}
-                                onChange={e => setShoppinglist(items => items.map((value, position) => position === index ? { ...value, name: e.target.value } : value))}
+                                onChange={e => setShoppinglist(items => items.map((value, position) => position === index ? updateItem(value, { name: e.target.value }) : value))}
                                 onKeyDown={e => {
                                   if (e.key === 'Enter') {
                                     e.currentTarget.blur();
@@ -449,7 +542,7 @@ function App() {
                     </button>
                   </div>
                 </div>
-                {isBusy && <div className="list-loading-overlay" role="status">
+                {(isLoading || isPreparingImage) && <div className="list-loading-overlay" role="status">
                   <Spinner animation="border" aria-hidden="true" />
                   <span className="visually-hidden">{isLoading ? 'Processing image' : 'Preparing image'}</span>
                 </div>}
