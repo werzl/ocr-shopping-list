@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, type ChangeEvent } from "react";
+import { Fragment, useState, useRef, useEffect, type ChangeEvent } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import { Container, Row, Col, Navbar, Button, Spinner } from "react-bootstrap";
+import { categoryOrder, classifyItem } from './categories';
 
 import notepadLogo from "./assets/notepad.png";
 import OpenAiWrapper from "./openai/OpenAiWrapper";
@@ -41,6 +42,7 @@ function App() {
   const [image, setImage] = useState<Blob | null>(null);
   const savedImage = useRef<Blob | null>(null);
   const [shoppingList, setShoppinglist] = useState<ShoppingListItem[]>([]);
+  const [categories, setCategories] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState('');
@@ -67,6 +69,7 @@ function App() {
         return;
 
       setShoppinglist(session.shoppingList);
+      setCategories(session.categories ?? false);
       setImage(session.image);
       savedImage.current = session.image;
       setImageFileName(session.fileName);
@@ -88,7 +91,7 @@ function App() {
 
     const version = ++saveVersion.current;
     setIsSaving(true);
-    const session = { id: 'current' as const, shoppingList, ...(image ? { imageId: 'current' as const } : {}), fileName: imageFileName };
+    const session = { id: 'current' as const, shoppingList, ...(categories ? { categories: true } : {}), ...(image ? { imageId: 'current' as const } : {}), fileName: imageFileName };
     // Serialize snapshots so a stale write cannot overwrite a later edit.
     saveQueue.current = saveQueue.current.then(async () => {
       if (image === savedImage.current) {
@@ -111,7 +114,7 @@ function App() {
       if (version === saveVersion.current)
         setIsSaving(false);
     });
-  }, [storageReady, shoppingList, image, imageFileName, saveRetry, isEditing]);
+  }, [storageReady, shoppingList, categories, image, imageFileName, saveRetry, isEditing]);
 
   useEffect(() => {
     if (!image) {
@@ -307,6 +310,11 @@ function App() {
     setShoppinglist(newList);
   }
 
+  const displayItems = shoppingList.map((item, index) => ({ item, index, category: classifyItem(item.name) }));
+  if (categories) {
+    displayItems.sort((a, b) => categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category));
+  }
+
   return (
     <Container className="app-shell">
       <Row>
@@ -344,6 +352,13 @@ function App() {
                   <EditIcon width="18" height="18" aria-hidden="true" />
                 </button>}
               </Col>
+              <Col xs={12}>
+                <label className="d-inline-flex align-items-center gap-2 py-2">
+                  <input type="checkbox" checked={categories} disabled={isBusy || isEditing || newItem !== null}
+                    onChange={e => setCategories(e.target.checked)} />
+                  Categorise
+                </label>
+              </Col>
               {image && <Col xs={12}>
                 <details className="source-photo">
                   <summary>
@@ -359,11 +374,13 @@ function App() {
                 <div className={`shopping-list${isEditing ? ' shopping-list-editing' : ''}${shoppingList.length === 0 && newItem === null ? ' shopping-list-empty' : ''}`} ref={shoppingListRef} tabIndex={0} inert={isBusy}>
                   {shoppingList.length > 0 &&
                     <>
-                      {shoppingList.map((item, index) => {
+                      {displayItems.map(({ item, index, category }, position) => {
                         const key = `shopping-item-${index}`;
 
                         return (
-                          <div className={isEditing ? "item-editor" : "checkbox-wrapper-52"} key={key}>
+                          <Fragment key={key}>
+                          {categories && (position === 0 || displayItems[position - 1].category !== category) && <h4 className="mt-3 mb-2">{category}</h4>}
+                          <div className={isEditing ? "item-editor" : "checkbox-wrapper-52"}>
                             {!isEditing && <label htmlFor={String(key)} className="item">
                               <input type="checkbox" id={String(key)} className="hidden" checked={item.checked} disabled={isEditing || isBusy} aria-label={item.name || `Item ${index + 1}`} onChange={(e) => handleCheck(index, e.target.checked)} />
 
@@ -390,7 +407,7 @@ function App() {
                               />
                               <Button variant="outline-danger" aria-label={`Remove item ${index + 1}`} onClick={() => setShoppinglist(items => items.filter((_, position) => position !== index))}>&#215;</Button>
                             </>}
-                          </div>);
+                          </div></Fragment>);
                       })}
                     </>
                   }

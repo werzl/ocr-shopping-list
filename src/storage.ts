@@ -9,6 +9,7 @@ export interface SavedSession {
   id: 'current';
   shoppingList: ShoppingListItem[];
   imageId?: 'current';
+  categories?: boolean;
   fileName: string;
 }
 

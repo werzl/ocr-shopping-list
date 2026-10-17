@@ -6,6 +6,19 @@ A small app I use often.
 2. Image is submitted to the OpenAI API with a prompt
 3. Returned is OCR-recognised text and a neat checkbox-list of shopping items
 
+## Categories
+
+Select **Categorise** to group items under category headings.
+You can change the option when the list is empty or contains items. The app shows only categories that contain items.
+Clear **Categorise** to restore the original item order. Item names and checked states stay the same.
+The control is temporarily disabled while you edit, add an item, or process a photo.
+
+Local keyword rules classify manual items and photo results without extra API requests. Unrecognised items appear under **Other**.
+Fruit appears under **Fruit & Veg**. Vegetables appear under **Veg**. The app saves the option with the list.
+**Ready Meals** includes pizza, ready meals, and lasagne. Ice appears under **Frozen**. An explicit **frozen** label takes priority over **Ready Meals**.
+To extend the rules, edit `src/categories.ts`. Keep specific phrases before general food names.
+The rules normalise whitespace and dash separators. They also distinguish phrases such as **baby spinach**, **peanut butter**, and **wine vinegar**.
+
 ## Architecture
 ```mermaid
 flowchart LR
@@ -114,3 +127,17 @@ npm run test:run
 Browser tests check real compression and IndexedDB persistence for all PNG fixtures. They do not call OpenAI or assess handwriting readability.
 
 Playwright 1.61 supports the current Node 18 setup. Repeat the browser install after changing Playwright. Linux CI needs `npm run test:browser:install -- --with-deps`.
+
+### Category properties
+
+Run the generated category checks with:
+
+```bash
+npm run test:unit -- tests/categories.property.test.ts
+```
+
+The suite uses deterministic generators with Vitest. It requires no additional packages.
+The independent item set is in `tests/fixtures/categoryItems.ts`. Add expected categories there when you extend item coverage.
+The generators vary case, quantities, suffixes, whitespace, and dash separators. Compound products check conflicts between product names and ingredient names.
+Additional checks test word boundaries and 2,000 arbitrary strings with the fixed seed `0x3ca7e`.
+Failures show the generated input. Each item starts with its simplest variant. The suite does not shrink failures automatically.
