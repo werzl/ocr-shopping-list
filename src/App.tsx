@@ -1,695 +1,254 @@
-import { Fragment, useState, useRef, useEffect, useLayoutEffect, type ChangeEvent } from "react";
-import { ToastContainer, toast } from "react-toastify";
-import { Container, Row, Col, Navbar, Button, Spinner } from "react-bootstrap";
-import { categoryOrder } from './categories';
-import { itemCategory, reorderItems } from './reorderItems';
-import DragHandle from './DragHandle';
-import AnimatedDetails from './AnimatedDetails';
-import { animateRows, shrinkList, revealEmptyList, animateEditMode, popOutRow } from './listMotion';
-import { animateNavbar, captureNavbar, type NavbarPositions } from './navbarMotion';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type FormEvent } from 'react';
+import { liveQuery } from 'dexie';
+import { Button, Container, Modal, Spinner } from 'react-bootstrap';
+import { ToastContainer, toast } from 'react-toastify';
+import OpenAiWrapper from './openai/OpenAiWrapper';
+import ListEditor from './ListEditor';
+import ListCard from './ListCard';
+import EmptyListIllustration from './EmptyListIllustration';
+import { popInList, popOutList } from './listMotion';
+import { defaultListName, deleteList, listLists, loadList, type LoadedList, type SavedList } from './storage';
+import notepadLogo from './assets/notepad.png';
+import './App.css';
 
-import notepadLogo from "./assets/notepad.png";
-import OpenAiWrapper from "./openai/OpenAiWrapper";
-import EditIcon from "./assets/pen-to-square-solid-full.svg?react";
-import LeftIcon from "./assets/arrow-left-solid-full.svg?react";
-import PhotoIcon from "./assets/photo-film-solid-full.svg?react";
-import TrashIcon from "./assets/trash-solid-full.svg?react";
+type Page = { type: 'gallery' } | { type: 'list'; list: LoadedList; isNew: boolean };
+type PageAction = { type: 'back' } | { type: 'open'; list: LoadedList; isNew: boolean };
 
-import "./App.css";
-
-import { loadSession, saveSession, isStorageFull, type ShoppingListItem } from './storage';
-
-import { compressImage } from './compressImage';
-
-const appVersion = __APP_VERSION__; // Injected at build time from vite.config.ts
-
-function imageToDataUrl(image: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error('Could not read image'));
-      }
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Could not read image'));
-    reader.readAsDataURL(image);
-  });
+function pageReducer(_page: Page, action: PageAction): Page {
+  return action.type === 'back' ? { type: 'gallery' } : { type: 'list', list: action.list, isNew: action.isNew };
 }
 
-function App() {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingItem, setEditingItem] = useState<number | null>(null);
-  const [newItem, setNewItem] = useState<string | null>(null);
-  const snapshot = useRef<{ items: ShoppingListItem[]; image: Blob | null; fileName: string } | null>(null);
-  const [imageFileName, setImageFileName] = useState('');
-  const [image, setImage] = useState<Blob | null>(null);
-  const savedImage = useRef<Blob | null>(null);
-  const [shoppingList, setShoppinglist] = useState<ShoppingListItem[]>([]);
-  const [categories, setCategories] = useState(false);
-  const [moveMessage, setMoveMessage] = useState('');
-  const itemKeys = useRef(new WeakMap<ShoppingListItem, string>());
-  const [imageUrl, setImageUrl] = useState('');
-  const [storageReady, setStorageReady] = useState(false);
-  const [storageError, setStorageError] = useState('');
-  const [saveRetry, setSaveRetry] = useState(0);
-  const [isSaving, setIsSaving] = useState(false);
-  const saveVersion = useRef(0);
-  const saveQueue = useRef(Promise.resolve());
-
-  const [isPreparingImage, setIsPreparingImage] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [apiKey, setApiKey] = useState("");
-  const [apiKeyConfirmed, setApiKeyConfirmed] = useState(false);
-
-  const [isClearing, setIsClearing] = useState(false);
-  const [isChangingMode, setIsChangingMode] = useState(false);
-  const [isRemovingRow, setIsRemovingRow] = useState(false);
-  const isBusy = isLoading || isPreparingImage || isClearing || isChangingMode || isRemovingRow;
-  const removalAnimation = useRef<Animation | null>(null);
-  const focusAfterRemoval = useRef<number | null>(null);
-  const modeAnimation = useRef<Animation | null>(null);
-  const revealMode = useRef(false);
-  const clearAnimation = useRef<Animation | null>(null);
-  const revealAfterClear = useRef(false);
-
-  useEffect(() => () => clearAnimation.current?.cancel(), []);
-  useEffect(() => () => modeAnimation.current?.cancel(), []);
-  useEffect(() => () => removalAnimation.current?.cancel(), []);
-
-  const shoppingListRef = useRef<HTMLDivElement>(null);
-  const revealCategories = useRef(false);
-
-  useLayoutEffect(() => {
-    if (!revealCategories.current || !shoppingListRef.current)
-      return;
-
-    revealCategories.current = false;
-    const animation = animateEditMode(shoppingListRef.current, false, true);
-
-    return () => animation?.cancel();
-  }, [categories]);
-  const navbarRef = useRef<HTMLDivElement>(null);
-  const navbarPositions = useRef<NavbarPositions>(new Map());
-
-  useLayoutEffect(() => {
-    if (!navbarRef.current)
-      return;
-
-    const cleanup = navbarPositions.current.size ? animateNavbar(navbarRef.current, navbarPositions.current) : undefined;
-    navbarPositions.current = captureNavbar(navbarRef.current);
-
-    return cleanup;
-  }, [isEditing, apiKeyConfirmed]);
-  const rowPositions = useRef<Map<string, DOMRect> | null>(null);
-
-  useLayoutEffect(() => {
-    if (revealMode.current && shoppingListRef.current) {
-      modeAnimation.current?.cancel();
-      modeAnimation.current = animateEditMode(shoppingListRef.current, isEditing, true);
-      revealMode.current = false;
-    }
-  }, [isEditing]);
-
-  useLayoutEffect(() => {
-    if (revealAfterClear.current && shoppingListRef.current) {
-      clearAnimation.current?.cancel();
-      clearAnimation.current = null;
-      revealAfterClear.current = false;
-      shoppingListRef.current.scrollTop = 0;
-      revealEmptyList(shoppingListRef.current);
-    }
-
-    if (shoppingListRef.current && rowPositions.current)
-      animateRows(shoppingListRef.current, rowPositions.current);
-
-    rowPositions.current = null;
-    if (focusAfterRemoval.current !== null && shoppingListRef.current) {
-      const index = Math.min(focusAfterRemoval.current, shoppingList.length - 1);
-      const focusTarget = shoppingListRef.current.querySelector<HTMLElement>(`[data-item-index="${index}"] .drag-handle`)
-        ?? shoppingListRef.current.querySelector<HTMLElement>('.add-item-button');
-
-      focusTarget?.focus({ preventScroll: true });
-      focusAfterRemoval.current = null;
-    }
-  }, [shoppingList]);
-  const openAiWrapper = useRef<OpenAiWrapper | null>(null);
-  const inputFileButtonRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    let active = true;
-    void loadSession().then(session => {
-      if (!active)
-        return;
-
-      setShoppinglist(session.shoppingList);
-      setCategories(session.categories ?? false);
-      setImage(session.image);
-      savedImage.current = session.image;
-      setImageFileName(session.fileName);
-
-      setStorageReady(true);
-    }).catch((error: unknown) => {
-      if (active)
-        setStorageError(isStorageFull(error)
-          ? 'Browser storage is full. Free some browser storage, then reload to retry. Existing data has been kept.'
-          : 'Could not load saved data. Reload to retry; existing data has been kept.');
-    });
-
-    return () => { active = false; };
+export default function App() {
+  const [page, dispatch] = useReducer(pageReducer, { type: 'gallery' });
+  const [client, setClient] = useState<OpenAiWrapper | null>(null);
+  const [signedIn, setSignedIn] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [authenticating, setAuthenticating] = useState(false);
+  const [lists, setLists] = useState<SavedList[]>([]);
+  const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [reload, setReload] = useState(0);
+  const [opening, setOpening] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<SavedList | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const deletion = useRef<{ id: string; lists: SavedList[] | null; committed: boolean } | null>(null);
+  const deleteAnimation = useRef<Animation | null>(null);
+  const back = useCallback(() => dispatch({ type: 'back' }), []);
+  const missing = useCallback(() => {
+    dispatch({ type: 'back' });
+    toast.info('This list no longer exists.');
   }, []);
 
   useEffect(() => {
-    if (!storageReady || isEditing)
-      return;
+    setReady(false);
+    setLoadError('');
+    const subscription = liveQuery(listLists).subscribe({
+      next: result => {
+        // Keep the deleted list visible until its exit animation ends.
+        if (deletion.current)
+          deletion.current.lists = result;
+        else
+          setLists(result);
 
-    const version = ++saveVersion.current;
-    setIsSaving(true);
-    const session = { id: 'current' as const, shoppingList, ...(categories ? { categories: true } : {}), ...(image ? { imageId: 'current' as const } : {}), fileName: imageFileName };
-    // Serialize snapshots so a stale write cannot overwrite a later edit.
-    saveQueue.current = saveQueue.current.then(async () => {
-      if (image === savedImage.current) {
-        await saveSession(session);
-      } else {
-        await saveSession(session, image);
-        savedImage.current = image;
-      }
-    }).then(() => {
-      if (version === saveVersion.current)
-        setStorageError('');
-    }).catch((error: unknown) => {
-      if (version !== saveVersion.current)
-        return;
-
-      setStorageError(isStorageFull(error)
-        ? 'Browser storage is full. Your latest changes are only in this open page. Upload a smaller image or free some browser storage, then retry saving. Reloading may lose unsaved changes.'
-        : 'Could not save changes. Keep this page open and retry saving.');
-    }).finally(() => {
-      if (version === saveVersion.current)
-        setIsSaving(false);
+        setReady(true);
+      },
+      error: error => {
+        const message = `Could not load lists: ${reason(error)}`;
+        setLoadError(message);
+        toast.error(message);
+      },
     });
-  }, [storageReady, shoppingList, categories, image, imageFileName, saveRetry, isEditing]);
 
+    return () => subscription.unsubscribe();
+  }, [reload]);
+
+  const newListId = signedIn && page.type === 'list' && page.isNew ? page.list.id : null;
+  useLayoutEffect(() => {
+    const animation = newListId && workspaceRef.current ? popInList(workspaceRef.current) : null;
+
+    return () => animation?.cancel();
+  }, [newListId]);
+
+  useEffect(() => () => {
+    deletion.current = null;
+    deleteAnimation.current?.cancel();
+  }, []);
+
+  const selectedId = page.type === 'list' && !page.isNew ? page.list.id : null;
   useEffect(() => {
-    if (!image) {
-      setImageUrl('');
-
+    if (!selectedId)
       return;
-    }
 
-    const url = URL.createObjectURL(image);
-    setImageUrl(url);
+    const subscription = liveQuery(() => loadList(selectedId)).subscribe({
+      next: list => {
+        if (!list && deletion.current?.id !== selectedId)
+          missing();
+      },
+      error: error => toast.error(`Could not load this list: ${reason(error)}`),
+    });
 
-    return () => URL.revokeObjectURL(url);
-  }, [image]);
+    // Check again when a suspended browser tab becomes active.
+    const check = () => {
+      if (document.visibilityState === 'visible')
+        void loadList(selectedId).then(list => {
+          if (!list && deletion.current?.id !== selectedId)
+            missing();
+        }).catch(error => toast.error(`Could not load this list: ${reason(error)}`));
+    };
 
-  useEffect(() => {
-    function beforeunload(e: BeforeUnloadEvent) {
-      if (isEditing || newItem !== null || isLoading || isPreparingImage || isClearing || isSaving || (storageReady && storageError)) {
-        e.preventDefault();
-        e.returnValue = true;
-      }
-    }
+    document.addEventListener('visibilitychange', check);
 
-    window.addEventListener('beforeunload', beforeunload);
+    return () => { subscription.unsubscribe(); document.removeEventListener('visibilitychange', check); };
+  }, [selectedId, missing]);
 
-    return () => {
-      window.removeEventListener('beforeunload', beforeunload);
-    }
-  }, [isEditing, newItem, isLoading, isPreparingImage, isClearing, isSaving, storageReady, storageError]);
-
-  async function processImage(source: Blob) {
-    if (!openAiWrapper.current) {
+  async function login(event: FormEvent) {
+    event.preventDefault();
+    if (!apiKey.trim() || authenticating)
       return;
-    }
 
-    setIsLoading(true);
-
+    setAuthenticating(true);
     try {
-      const commaSeparated = await openAiWrapper.current.recogniseHandwriting(await imageToDataUrl(source));
-      const array = commaSeparated.split(',').map(name => name.trim()).filter(Boolean);
-      const shoppingListObjects = array.map((v) => {
-        return {
-          name: v,
-          checked: false
-        }
-      });
-
-      setShoppinglist(items => [...items, ...shoppingListObjects]);
-      setIsLoading(false);
-
-      shoppingListRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-    catch (e) {
-      console.error(e);
-
-      const message = e instanceof Error ? e.message : String(e);
-
-      if (message.toLowerCase().includes("401")) {
-        errorToast("Invalid API Key");
-      }
-      else {
-        errorToast("Processing error");
-      }
-
-      setIsLoading(false);
-    }
-  }
-
-  async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || image || isBusy || newItem !== null)
-      return;
-
-    if (!openAiWrapper.current) {
-      errorToast('Enter an API key before you upload an image.');
-
-      return;
-    }
-
-    // Reset the input so a failed upload can use the same file.
-    if (inputFileButtonRef.current) {
-      inputFileButtonRef.current.value = "";
-    }
-
-    if (!isEditing) {
-      startEditing();
-    }
-
-    setIsPreparingImage(true);
-    try {
-      const compressed = await compressImage(file);
-      setImageFileName(file.name);
-      setImage(compressed);
-      await processImage(file);
-    } catch (error) {
-      errorToast(error instanceof Error ? error.message : 'Could not prepare this image. Try a different photo.');
+      const next = new OpenAiWrapper(apiKey.trim());
+      await next.testApiKey();
+      setClient(next);
+      setApiKey('');
+      setSignedIn(true);
+    } catch {
+      toast.error('Could not validate the API key. Check the key and your connection.');
     } finally {
-      setIsPreparingImage(false);
+      setAuthenticating(false);
     }
   }
 
-  function startEditing() {
-    snapshot.current = { items: shoppingList, image, fileName: imageFileName };
-    setIsEditing(true);
-  }
-
-  async function changeEditing(editing: boolean, save = false) {
-    if (isBusy)
-      return;
-
-    if (shoppingListRef.current) {
-      modeAnimation.current?.cancel();
-      modeAnimation.current = animateEditMode(shoppingListRef.current, editing, false);
-      if (modeAnimation.current) {
-        setIsChangingMode(true);
-        try {
-          await modeAnimation.current.finished;
-        } catch {
-          return;
-        }
-      }
-
-      revealMode.current = true;
-    }
-
-    if (editing)
-      startEditing();
-    else if (save)
-      saveEditing();
-    else
-      cancelEditing();
-
-    setIsChangingMode(false);
-  }
-
-  function cancelEditing() {
-    if (snapshot.current) {
-      setShoppinglist(snapshot.current.items);
-      setImage(snapshot.current.image);
-      setImageFileName(snapshot.current.fileName);
-    }
-
-    setEditingItem(null);
-    setIsEditing(false);
-  }
-
-  function saveEditing() {
-    setShoppinglist(items => items.map(item => ({ ...item, name: item.name.trim() })).filter(item => item.name));
-    setEditingItem(null);
-    setIsEditing(false);
-    snapshot.current = null;
-  }
-
-  function addItem() {
-    if (!isEditing) {
-      setNewItem('');
-
-      return;
-    }
-
-    setEditingItem(shoppingList.length);
-    setShoppinglist(items => [...items, { name: '', checked: false }]);
-  }
-
-  function confirmNewItem() {
-    const name = newItem?.trim();
-    if (!name)
-      return;
-
-    setShoppinglist(items => [...items, { name, checked: false }]);
-    setNewItem(null);
-  }
-
-  async function handleClear() {
-    if (isBusy || isEditing)
-      return;
-
-    const list = shoppingListRef.current;
-    if (list && (shoppingList.length > 0 || newItem !== null || image)) {
-      clearAnimation.current = shrinkList(list);
-      if (clearAnimation.current) {
-        setIsClearing(true);
-        try {
-          await clearAnimation.current.finished;
-        } catch {
-          return;
-        }
-      }
-
-      revealAfterClear.current = true;
-    }
-
-    setIsClearing(false);
-    setNewItem(null);
-    setShoppinglist([]);
-    setImageFileName("");
-    setImage(null);
-    setIsLoading(false);
-
-  }
-
-  function handleApiKeyConfirmation() {
+  async function open(id: string) {
+    setOpening(true);
     try {
-      openAiWrapper.current = new OpenAiWrapper(apiKey);
-      void openAiWrapper.current.testApiKey();
+      const list = await loadList(id);
+      if (list)
+        dispatch({ type: 'open', list, isNew: false });
+      else
+        missing();
+    } catch (error) {
+      toast.error(`Could not load this list: ${reason(error)}`);
+    } finally {
+      setOpening(false);
     }
-    catch (e) {
-      console.error(e);
-      errorToast("Invalid API Key");
-
-      return;
-    }
-
-    setApiKeyConfirmed(true);
   }
 
-  function handleBack() {
-    openAiWrapper.current = null;
-
-    setApiKey("");
-    setApiKeyConfirmed(false);
+  function create() {
+    const now = Date.now();
+    dispatch({ type: 'open', isNew: true, list: {
+      id: crypto.randomUUID(), name: defaultListName(), shoppingList: [], image: null,
+      fileName: '', createdAt: now, updatedAt: now,
+    } });
   }
 
-  function errorToast(message: string) {
-    toast.error(message, {
-      position: "top-right",
-      autoClose: 5000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: false,
-      draggable: true,
-      progress: undefined,
-      theme: "colored",
-    });
-  }
-
-  async function removeItem(index: number) {
-    if (!isEditing || isBusy)
+  async function confirmDelete() {
+    if (!pendingDelete || deleting)
       return;
 
-    const item = shoppingList[index];
-    const list = shoppingListRef.current;
-    const row = list?.querySelector<HTMLElement>(`[data-item-index="${index}"]`);
-    if (!item || !list || !row)
-      return;
-
-    row.getAnimations?.().forEach(animation => animation.cancel());
-    removalAnimation.current = popOutRow(row);
-    if (removalAnimation.current) {
-      setIsRemovingRow(true);
-      try {
-        await removalAnimation.current.finished;
-      } catch {
+    setDeleting(true);
+    const operation = { id: pendingDelete.id, lists: null as SavedList[] | null, committed: false };
+    deletion.current = operation;
+    try {
+      await deleteList(pendingDelete.id);
+      if (deletion.current !== operation)
         return;
-      }
+
+      operation.committed = true;
+      setPendingDelete(null);
+    } catch (error) {
+      if (deletion.current !== operation)
+        return;
+
+      deletion.current = null;
+      if (operation.lists)
+        setLists(operation.lists);
+
+      setDeleting(false);
+      toast.error(`Could not delete this list: ${reason(error)}`);
     }
-
-    rowPositions.current = new Map(Array.from(list.querySelectorAll<HTMLElement>('[data-item-key]'), element => [
-      element.dataset.itemKey!, element.getBoundingClientRect(),
-    ]));
-    focusAfterRemoval.current = index;
-    removalAnimation.current = null;
-    setShoppinglist(items => items.filter(value => value !== item));
-    setIsRemovingRow(false);
   }
 
-  function handleCheck(index: number, checked: boolean) {
-    const newList = shoppingList.map((item, itemIndex) =>
-      itemIndex === index ? updateItem(item, { checked }) : item
-    );
-
-    setShoppinglist(newList);
-  }
-
-  function updateItem(item: ShoppingListItem, changes: Partial<ShoppingListItem>) {
-    const updated = { ...item, ...changes };
-    const key = itemKeys.current.get(item);
-    if (key)
-      itemKeys.current.set(updated, key);
-
-    return updated;
-  }
-
-  function moveItem(source: number, target: number, after: boolean, landing?: DOMRect) {
-    if (!isEditing || isBusy || newItem !== null)
+  async function finishDelete() {
+    const operation = deletion.current;
+    if (!operation?.committed)
       return;
 
-    const positions = new Map<string, DOMRect>();
-    shoppingListRef.current?.querySelectorAll<HTMLElement>('[data-item-key]').forEach(row => {
-      positions.set(row.dataset.itemKey!, row.getBoundingClientRect());
-      row.getAnimations?.().forEach(animation => animation.cancel());
-    });
-    const sourceKey = itemKeys.current.get(shoppingList[source]);
-    if (landing && sourceKey)
-      positions.set(sourceKey, landing);
+    const target = page.type === 'list' ? workspaceRef.current
+      : [...galleryRef.current?.querySelectorAll<HTMLElement>('[data-list-id]') ?? []]
+        .find(card => card.dataset.listId === operation.id);
 
-    rowPositions.current = positions;
-    setShoppinglist(items => {
-      const result = reorderItems(items, source, target, after, categories ? itemCategory(items[target]) : undefined);
-      const movedIndex = source === target ? source : target - Number(source < target) + Number(after);
-      const key = itemKeys.current.get(items[source]);
-      if (key)
-        itemKeys.current.set(result[movedIndex], key);
+    const animation = target ? popOutList(target) : null;
+    deleteAnimation.current = animation;
 
-      return result;
-    });
-    setMoveMessage(`Moved ${shoppingList[source].name}${categories ? ` to ${itemCategory(shoppingList[target])}` : ''}.`);
+    await animation?.finished.catch(() => {});
+
+    if (deletion.current !== operation)
+      return;
+
+    setLists(operation.lists ?? lists.filter(list => list.id !== operation.id));
+    deletion.current = null;
+    if (page.type === 'list' && page.list.id === operation.id)
+      back();
+
+    setDeleting(false);
+    deleteAnimation.current = null;
   }
 
-  const displayItems = shoppingList.map((item, index) => ({ item, index, category: itemCategory(item) }));
-  if (categories) {
-    displayItems.sort((a, b) => categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category));
-  }
-
-  return (
-    <Container className="app-shell">
-      <Row>
-        <Col>
-          {storageError && <p role="alert">{storageError}</p>}
-          {storageError && storageReady && <Button variant="outline-primary" onClick={() => setSaveRetry(value => value + 1)}>Retry save</Button>}
-          {!storageReady && !storageError && <p role="status">Loading saved list...</p>}
-          {!apiKeyConfirmed &&
-            <>
-              <div>
-                <h2 className="app-heading"><img src={notepadLogo} className="logo" alt="Notepad logo" />HandyList {appVersion}</h2>
-              </div>
-              <div className="api-key-panel">
-                <form className="mt-3 text-center" >
-                  <label htmlFor="apiKey">Enter an API Key</label>
-                  <br />
-
-                  <input type="password" id="apiKey" placeholder="API-Key" onChange={e => setApiKey(e.target.value)} className="form-control mt-2" />
-
-                  <br /><br />
-
-                  <Button disabled={!storageReady} variant="outline-primary" onClick={() => handleApiKeyConfirmation()}>
-                    Submit
-                  </Button>
-                </form>
-              </div>
-            </>
-          }
-
-          {apiKeyConfirmed &&
-            <Row className="workspace g-4">
-              <Col xs={12} className="list-heading">
-                <h3>HandyList {appVersion}</h3>
-              </Col>
-              <Col xs={12} className="d-flex align-items-center justify-content-between gap-2">
-                <label className="d-inline-flex align-items-center gap-2 py-2">
-                  <input type="checkbox" checked={categories} disabled={isBusy || isEditing || newItem !== null}
-                    onChange={e => {
-                      revealCategories.current = true;
-                      setCategories(e.target.checked);
-                    }} />
-                  Categorise
-                </label>
-                {!isEditing && <button type="button" className="edit-list-icon" aria-label="Edit" title="Edit list" onClick={() => void changeEditing(true)} disabled={isBusy || newItem !== null || shoppingList.length === 0}>
-                  <EditIcon width="18" height="18" aria-hidden="true" />
-                </button>}
-              </Col>
-              {image && <Col xs={12}>
-                <AnimatedDetails className="source-photo">
-                  <summary>
-                    <img src={imageUrl || undefined} className="uploaded-image" alt={imageFileName || 'Uploaded shopping list'} />
-                    <span className="source-photo-label"><strong>Uploaded photo</strong><small>{imageFileName || 'View photo'}</small></span>
-                    <svg className="source-photo-chevron" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-                  </summary>
-                  <img src={imageUrl || undefined} className="source-photo-full" alt="Full source photo" />
-                </AnimatedDetails>
-              </Col>}
-
-              <Col xs={12} className="shopping-list-panel" role="region" aria-label="Shopping list" aria-busy={isBusy}>
-                <p className="visually-hidden" aria-live="polite" aria-atomic="true">{moveMessage}</p>
-                <div className={`shopping-list${isEditing ? ' shopping-list-editing' : ''}${shoppingList.length === 0 && newItem === null ? ' shopping-list-empty' : ''}`} ref={shoppingListRef} tabIndex={0} inert={isBusy}>
-                  {shoppingList.length > 0 &&
-                    <>
-                      {displayItems.map(({ item, index, category }, position) => {
-                        let key = itemKeys.current.get(item);
-                        if (!key) {
-                          key = crypto.randomUUID();
-                          itemKeys.current.set(item, key);
-                        }
-
-                        return (
-                          <Fragment key={key}>
-                          {categories && (position === 0 || displayItems[position - 1].category !== category) && <h4 className="mt-3 mb-2">{category}</h4>}
-                          <div data-item-index={index} data-item-key={key} className={isEditing ? "item-editor" : "checkbox-wrapper-52"}>
-                            {isEditing && <DragHandle name={item.name || `item ${index + 1}`} disabled={isBusy || newItem !== null}
-                              onDrop={({ index: target, after, landing }) => moveItem(index, target, after, landing)}
-                              onStep={direction => {
-                                const target = displayItems[position + direction];
-                                if (target)
-                                  moveItem(index, target.index, direction > 0);
-                              }} />}
-                            {!isEditing && <label htmlFor={String(key)} className="item">
-                              <input type="checkbox" id={String(key)} className="hidden" checked={item.checked} disabled={isEditing || isBusy} aria-label={item.name || `Item ${index + 1}`} onChange={(e) => handleCheck(index, e.target.checked)} />
-
-                              <span className="cbx" aria-hidden="true">
-                                <svg width="14px" height="12px" viewBox="0 0 14 12">
-                                  <polyline points="1 7.6 5 11 13 1"></polyline>
-                                </svg>
-                              </span>
-
-                              {!isEditing && <span className="cbx-lbl">{item.name}</span>}
-                            </label>}
-                            {isEditing && <>
-                              <input
-                                autoFocus={editingItem === index}
-                                aria-label={`Item ${index + 1} name`}
-                                className="form-control"
-                                value={item.name}
-                                onChange={e => setShoppinglist(items => items.map((value, position) => position === index ? updateItem(value, { name: e.target.value }) : value))}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter') {
-                                    e.currentTarget.blur();
-                                  }
-                                }}
-                              />
-                              <Button variant="outline-danger" aria-label={`Remove item ${index + 1}`} onClick={() => void removeItem(index)} disabled={isBusy}>&#215;</Button>
-                            </>}
-                          </div></Fragment>);
-                      })}
-                    </>
-                  }
-
-                  {shoppingList.length === 0 && newItem === null && <div className="empty-list-splash">
-                    <div className="empty-list-illustration" aria-hidden="true">
-                      <svg viewBox="0 0 80 80" width="80" height="80" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="17" y="12" width="46" height="58" rx="7" />
-                        <path d="M30 12v-3h20v3 M27 29l3 3 5-6 M42 29h12 M27 44l3 3 5-6 M42 44h12 M27 59h8 M42 59h12" />
-                      </svg>
-                    </div>
-                    <h4>Handy List</h4>
-                    <p>Add your first item and get ready for your next shop.</p>
-                  </div>}
-                  {newItem !== null && <div className="item-editor">
-                    <input autoFocus className="form-control" aria-label="New item name" value={newItem} onChange={e => setNewItem(e.target.value)} onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        confirmNewItem();
-                      }
-
-                      if (e.key === 'Escape') {
-                        setNewItem(null);
-                      }
-                    }} />
-                    <Button variant="outline-success" aria-label="Confirm new item" onClick={confirmNewItem} disabled={!newItem.trim()}>&#10003;</Button>
-                    <Button variant="outline-danger" aria-label="Cancel new item" onClick={() => setNewItem(null)}>&#215;</Button>
-                  </div>}
-                  <div className="list-actions">
-                    <button type="button" className="add-item-button" aria-label="Add item" onClick={addItem} disabled={isBusy || newItem !== null}>
-                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                        <path d="M12 5v14 M5 12h14" />
-                      </svg>
-                      Add item
-                    </button>
-                    <input ref={inputFileButtonRef} type="file" id="upload" accept="image/jpeg, image/jpg, image/png, image/webp, image/gif" onChange={handleImageUpload} hidden disabled={isBusy || !!image || newItem !== null} />
-                    <button type="button" className="add-item-button" aria-label="Photo" onClick={() => inputFileButtonRef.current?.click()} disabled={isBusy || !!image || newItem !== null}>
-                      <PhotoIcon aria-hidden="true" />
-                      Photo
-                    </button>
-                  </div>
-                </div>
-                {(isLoading || isPreparingImage) && <div className="list-loading-overlay" role="status">
-                  <Spinner animation="border" aria-hidden="true" />
-                  <span className="visually-hidden">{isLoading ? 'Processing image' : 'Preparing image'}</span>
-                </div>}
-              </Col>
-            </Row>
-          }
-
-          <ToastContainer />
-        </Col>
-      </Row>
-
-      {apiKeyConfirmed &&
-        <div className="navbar-dock" ref={navbarRef}>
-        <Navbar className="app-nav-bar" aria-label="List actions">
-          <button aria-label="Back" className="nav-button" onClick={handleBack} disabled={isBusy || isEditing}>
-            <LeftIcon aria-hidden="true" />
-            <span>Back</span>
-          </button>
-          {isEditing && <>
-            <button aria-label="Cancel" className="nav-button" onClick={() => void changeEditing(false)} disabled={isBusy}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12 M18 6 6 18" /></svg>
-              <span>Cancel</span>
-            </button>
-            <button aria-label="Save" className="nav-button nav-save" onClick={() => void changeEditing(false, true)} disabled={isBusy}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
-              <span>Save</span>
-            </button>
-          </>}
-          <button aria-label="Clear" className="nav-button nav-clear" onClick={handleClear} disabled={isBusy || isEditing}>
-            <TrashIcon aria-hidden="true" />
-            <span>Clear</span>
-          </button>
-        </Navbar>
-        </div>
-      }
-    </Container>
-  );
+  return <>
+    {!signedIn ? <Container className="app-shell">
+      <h2 className="app-heading"><img src={notepadLogo} className="logo" alt="Notepad logo" />HandyList {__APP_VERSION__}</h2>
+      <div className="api-key-panel">
+        <form onSubmit={event => void login(event)}>
+          <label htmlFor="apiKey">Enter an API Key</label>
+          <input type="password" id="apiKey" placeholder="API-Key" autoComplete="off" value={apiKey} onChange={event => setApiKey(event.target.value)} className="form-control my-3" disabled={authenticating} />
+          <Button type="submit" variant="outline-primary" disabled={!apiKey.trim() || authenticating}>{authenticating ? 'Checking key…' : 'Submit'}</Button>
+        </form>
+        <p className="mt-3">Your key stays in this page until you sign out or close it.</p>
+        <Button variant="link" disabled={authenticating} onClick={() => { setApiKey(''); setSignedIn(true); }}>Continue without a key</Button>
+      </div>
+    </Container> : page.type === 'gallery' ? <Container className="app-shell gallery">
+      <header className="gallery-heading">
+        <h1 className="gallery-brand">HandyList {__APP_VERSION__}</h1>
+        <Button variant="outline-primary" disabled={deleting} onClick={() => { setClient(null); setSignedIn(false); }}>{client ? 'Sign out' : 'Back'}</Button>
+      </header>
+      {!client && <p>Manual lists are available. Sign in with an API key to read photos.</p>}
+      {loadError && <div role="alert"><p>{loadError}</p><Button onClick={() => setReload(value => value + 1)}>Retry</Button></div>}
+      {!ready && !loadError && <p role="status"><Spinner as="span" size="sm" /> Loading lists…</p>}
+      {ready && <>
+        <div className="gallery-toolbar"><p>{lists.length} saved {lists.length === 1 ? 'list' : 'lists'}</p>
+          <button type="button" className="add-item-button" onClick={create} disabled={opening || deleting} aria-label="Add list">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M12 5v14 M5 12h14" />
+            </svg>
+            New list
+          </button></div>
+        {lists.length === 0 && <div className="gallery-empty">
+          <EmptyListIllustration />
+          <h2>Your next shop starts here</h2>
+          <p>Create a list from a photo or add items manually.</p>
+        </div>}
+        <div ref={galleryRef} className="list-gallery">{lists.map(list => <ListCard key={list.id} list={list} disabled={opening || deleting} onOpen={() => void open(list.id)} onDelete={() => setPendingDelete(list)} />)}</div>
+      </>}
+    </Container> : <ListEditor key={page.list.id} initial={page.list} isNew={page.isNew} client={client} deleting={deleting} motionRef={workspaceRef}
+      onBack={back} onMissing={missing} onDelete={list => setPendingDelete(list)}
+      onSaved={list => dispatch({ type: 'open', list, isNew: false })} />}
+    <Modal show={!!pendingDelete} onHide={() => {
+      if (!deleting)
+        setPendingDelete(null);
+    }} onExited={() => void finishDelete()} centered backdrop={deleting ? 'static' : true} keyboard={!deleting}>
+      <Modal.Header closeButton={!deleting}><Modal.Title>Delete list?</Modal.Title></Modal.Header>
+      <Modal.Body>Delete “{pendingDelete?.name}” and its photo? You cannot restore them.</Modal.Body>
+      <Modal.Footer><Button variant="secondary" disabled={deleting} onClick={() => setPendingDelete(null)}>Cancel</Button>
+        <Button variant="danger" disabled={deleting} onClick={() => void confirmDelete()}>{deleting ? 'Deleting…' : 'Delete list'}</Button></Modal.Footer>
+    </Modal>
+    <ToastContainer position="top-right" theme="colored" />
+  </>;
 }
 
-export default App;
+function reason(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

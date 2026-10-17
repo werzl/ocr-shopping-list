@@ -6,6 +6,8 @@ import svgr from 'vite-plugin-svgr'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Only PUBLIC_ variables can enter browser code. Keep secrets in private variables.
+  envPrefix: 'PUBLIC_',
   plugins: [
     react(),
     svgr({
@@ -17,11 +19,6 @@ export default defineConfig({
   base: "/ocr-shopping-list/",
   define: {
     '__APP_VERSION__': JSON.stringify(process.env.npm_package_version),
-  },
-  server: {
-    allowedHosts: [
-      '569e-2a00-23c6-7111-2101-588-bcd1-2e7f-319b.ngrok-free.app' // TODO: REMOVE
-    ]
   },
   test: {
     globals: true,

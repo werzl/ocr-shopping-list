@@ -1,6 +1,12 @@
-#root {
+:root {
   --panel-surface: light-dark(#f8f9fb, #2b2b2b);
   --panel-border: light-dark(#cdd2d9, #484848);
+  --list-control-color: light-dark(#525b66, #d4d4d4);
+  --list-control-surface: light-dark(#f3f4f6, #353535);
+  --list-control-border: light-dark(#cdd2d9, #555555);
+}
+
+#root {
   width: 100%;
   margin: 0 auto;
   text-align: center;
@@ -14,9 +20,6 @@
   margin: 2rem auto;
 }
 .workspace {
-  --list-control-color: light-dark(#525b66, #d4d4d4);
-  --list-control-surface: light-dark(#f3f4f6, #353535);
-  --list-control-border: light-dark(#cdd2d9, #555555);
   margin-top: 1rem;
   text-align: left;
 }
@@ -54,14 +57,23 @@
 }
 
 .add-item-button {
-  align-self: flex-start;
   gap: 0.5rem;
-  margin-top: 0.75rem;
   padding: 0.625rem 1rem;
   font-weight: 600;
   border-color: var(--list-control-border);
   background: var(--list-control-surface);
   color: var(--list-control-color);
+}
+
+.add-item-button svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.list-actions .add-item-button {
+  align-self: flex-start;
+  margin-top: 0.75rem;
 }
 
 @media (hover: hover) {
@@ -389,12 +401,6 @@
   gap: 0.75rem;
 }
 
-.list-actions svg {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-}
-
 .list-actions button[aria-label="Photo"] svg {
   fill: currentColor;
 }
@@ -443,7 +449,7 @@
 @media (min-width: 992px) {
   .app-shell {
     max-width: 1140px;
-    padding-bottom: 2rem;
+    padding-bottom: calc(2rem + var(--keyboard-inset, 0px));
   }
   .workspace {
     --workspace-height: min(65dvh, max(8rem, calc(100dvh - 380px)));
@@ -606,6 +612,8 @@ label {
 
 .checkbox-wrapper-52 .item {
   display: flex;
+  flex: 1;
+  min-width: 0;
   color: light-dark(#212529, #f1f3f5);
   align-items: center;
   gap: 0.75rem;
@@ -642,7 +650,7 @@ label {
 
 @media (max-width: 991.98px) {
   .app-shell {
-    padding: 0.75rem 1rem calc(7rem + env(safe-area-inset-bottom));
+    padding: 0.75rem 1rem calc(7rem + env(safe-area-inset-bottom) + var(--keyboard-inset, 0px));
   }
 
   .app-heading {
@@ -757,4 +765,166 @@ label {
 .shopping-list:focus-visible {
   outline: 3px solid var(--primary-button-main-color);
   outline-offset: 2px;
+}
+.gallery {
+  text-align: left;
+}
+
+.gallery-heading,
+.gallery-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.gallery-brand {
+  margin: 0;
+  color: var(--primary-button-main-color);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.gallery-toolbar p {
+  margin: 0;
+}
+
+.gallery-heading .btn {
+  min-height: 48px;
+  flex-shrink: 0;
+}
+
+.gallery-empty {
+  padding: 4rem 1.5rem;
+  border: 1px dashed var(--panel-border);
+  border-radius: 1.25rem;
+  background: var(--panel-surface);
+  text-align: center;
+}
+
+.list-gallery {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.list-card {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 1rem;
+  background: var(--panel-surface);
+  overflow: hidden;
+}
+
+.list-card-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  gap: 1rem;
+  padding: 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--color);
+  text-align: left;
+}
+
+.list-thumbnail {
+  display: grid;
+  flex: 0 0 64px;
+  place-items: center;
+  width: 64px;
+  height: 76px;
+  border: 1px solid var(--panel-border);
+  border-radius: 0.75rem;
+  background: var(--background-color);
+  object-fit: cover;
+}
+
+.list-placeholder svg {
+  width: 28px;
+  fill: currentColor;
+  opacity: 0.55;
+}
+
+.list-card-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.list-card-copy small {
+  opacity: 0.75;
+}
+
+.list-card-delete {
+  display: grid;
+  flex: 0 0 48px;
+  place-items: center;
+  min-height: 48px;
+  margin-right: 0.5rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: light-dark(#b34455, #f2a6b3);
+}
+
+.list-card-delete svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.list-card button:focus-visible {
+  outline: 3px solid var(--primary-button-main-color);
+  outline-offset: -3px;
+}
+
+.list-card button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  .list-card button:hover:not(:disabled) {
+    background: light-dark(#e5e7eb, #404040);
+  }
+}
+
+.list-title {
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.list-title label {
+  display: block;
+  margin: 0.75rem 0 0.375rem;
+}
+
+.list-title h3 {
+  margin-top: 0.5rem;
+}
+
+.list-title .form-control {
+  min-height: 48px;
+  border-color: var(--panel-border);
+  background: var(--panel-surface);
+  color: var(--color);
+}
+
+.list-title .form-control:focus {
+  border-color: var(--primary-button-main-color);
+  box-shadow: 0 0 0 3px light-dark(#0d6efd25, #3ed1fa30);
+}
+
+@media (min-width: 992px) {
+  .list-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

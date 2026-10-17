@@ -49,3 +49,25 @@
   color: black !important;
   font-size: 14px;
 }
+
+.modal {
+  --bs-modal-color: var(--color);
+  --bs-modal-bg: var(--background-color);
+  --bs-modal-border-color: var(--panel-border);
+  --bs-modal-header-border-color: var(--panel-border);
+  --bs-modal-footer-border-color: var(--panel-border);
+}
+
+.modal-content {
+  overflow-wrap: anywhere;
+}
+
+.modal-content .btn {
+  min-height: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .modal-header .btn-close {
+    filter: invert(1);
+  }
+}

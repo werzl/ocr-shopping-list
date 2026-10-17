@@ -1,17 +1,15 @@
 import OpenAI from "openai";
 
-const _apiKey = import.meta.env.VITE_OpenAI_Api_Key;
-
 export default class OpenAIWrapper {
     #openai: OpenAI;
 
     constructor(apiKey?: string) {
-        if (!_apiKey && !apiKey) {
+        if (!apiKey) {
             throw new Error("Api Key was not set");
         }
 
         this.#openai = new OpenAI({
-            apiKey: _apiKey ?? apiKey,
+            apiKey,
             dangerouslyAllowBrowser: true,
         });
     }

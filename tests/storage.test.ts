@@ -6,7 +6,7 @@ const { get, put, getImage, putImage, deleteImage, transaction } = vi.hoisted(()
 
 vi.mock('dexie', () => ({
   default: class {
-    version() { return { stores: vi.fn() }; }
+    version() { return { stores: () => ({ upgrade: vi.fn() }) }; }
     table(name: string) {
       return name === 'sessions' ? { get, put } : { get: getImage, put: putImage, delete: deleteImage };
     }
