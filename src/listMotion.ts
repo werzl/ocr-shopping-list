@@ -4,6 +4,16 @@ export function motionEnabled() {
   return typeof matchMedia === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+export function popOutRow(row: HTMLElement): Animation | null {
+  if (!motionEnabled() || typeof row.animate !== 'function')
+    return null;
+
+  return row.animate([
+    { transform: 'scale(1)', opacity: 1 },
+    { transform: 'scale(0.8)', opacity: 0 },
+  ], { duration: 150, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
+}
+
 export function animateEditMode(list: HTMLElement, editing: boolean, entering: boolean): Animation | null {
   if (!motionEnabled() || typeof list.animate !== 'function')
     return null;

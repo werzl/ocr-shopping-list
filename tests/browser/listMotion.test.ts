@@ -2,9 +2,29 @@ import { createElement, act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import AnimatedDetails from '../../src/AnimatedDetails';
-import { animateRows, shrinkList, revealEmptyList, animateEditMode } from '../../src/listMotion';
+import { animateRows, shrinkList, revealEmptyList, animateEditMode, popOutRow } from '../../src/listMotion';
 import '../../src/App.css';
 import { animateNavbar, captureNavbar } from '../../src/navbarMotion';
+
+it('pops a row out without collapsing its space before removal', async () => {
+  const row = document.createElement('div');
+  row.style.height = '44px';
+  document.body.append(row);
+  try {
+    const animation = popOutRow(row)!;
+    expect(row.offsetHeight).toBe(44);
+    await animation.finished;
+    expect(getComputedStyle(row).opacity).toBe('0');
+    expect(row.offsetHeight).toBe(44);
+    animation.cancel();
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    expect(popOutRow(row)).toBeNull();
+    expect(getComputedStyle(row).opacity).toBe('1');
+  } finally {
+    row.remove();
+    vi.unstubAllGlobals();
+  }
+});
 
 it('moves navbar controls and removes exiting Save and Cancel previews', async () => {
   const nav = document.createElement('div');

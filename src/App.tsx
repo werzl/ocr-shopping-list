@@ -5,7 +5,7 @@ import { categoryOrder } from './categories';
 import { itemCategory, reorderItems } from './reorderItems';
 import DragHandle from './DragHandle';
 import AnimatedDetails from './AnimatedDetails';
-import { animateRows, shrinkList, revealEmptyList, animateEditMode } from './listMotion';
+import { animateRows, shrinkList, revealEmptyList, animateEditMode, popOutRow } from './listMotion';
 import { animateNavbar, captureNavbar, type NavbarPositions } from './navbarMotion';
 
 import notepadLogo from "./assets/notepad.png";
@@ -65,7 +65,10 @@ function App() {
 
   const [isClearing, setIsClearing] = useState(false);
   const [isChangingMode, setIsChangingMode] = useState(false);
-  const isBusy = isLoading || isPreparingImage || isClearing || isChangingMode;
+  const [isRemovingRow, setIsRemovingRow] = useState(false);
+  const isBusy = isLoading || isPreparingImage || isClearing || isChangingMode || isRemovingRow;
+  const removalAnimation = useRef<Animation | null>(null);
+  const focusAfterRemoval = useRef<number | null>(null);
   const modeAnimation = useRef<Animation | null>(null);
   const revealMode = useRef(false);
   const clearAnimation = useRef<Animation | null>(null);
@@ -73,6 +76,7 @@ function App() {
 
   useEffect(() => () => clearAnimation.current?.cancel(), []);
   useEffect(() => () => modeAnimation.current?.cancel(), []);
+  useEffect(() => () => removalAnimation.current?.cancel(), []);
 
   const shoppingListRef = useRef<HTMLDivElement>(null);
   const revealCategories = useRef(false);
@@ -121,6 +125,14 @@ function App() {
       animateRows(shoppingListRef.current, rowPositions.current);
 
     rowPositions.current = null;
+    if (focusAfterRemoval.current !== null && shoppingListRef.current) {
+      const index = Math.min(focusAfterRemoval.current, shoppingList.length - 1);
+      const focusTarget = shoppingListRef.current.querySelector<HTMLElement>(`[data-item-index="${index}"] .drag-handle`)
+        ?? shoppingListRef.current.querySelector<HTMLElement>('.add-item-button');
+
+      focusTarget?.focus({ preventScroll: true });
+      focusAfterRemoval.current = null;
+    }
   }, [shoppingList]);
   const openAiWrapper = useRef<OpenAiWrapper | null>(null);
   const inputFileButtonRef = useRef<HTMLInputElement>(null);
@@ -413,6 +425,36 @@ function App() {
     });
   }
 
+  async function removeItem(index: number) {
+    if (!isEditing || isBusy)
+      return;
+
+    const item = shoppingList[index];
+    const list = shoppingListRef.current;
+    const row = list?.querySelector<HTMLElement>(`[data-item-index="${index}"]`);
+    if (!item || !list || !row)
+      return;
+
+    row.getAnimations?.().forEach(animation => animation.cancel());
+    removalAnimation.current = popOutRow(row);
+    if (removalAnimation.current) {
+      setIsRemovingRow(true);
+      try {
+        await removalAnimation.current.finished;
+      } catch {
+        return;
+      }
+    }
+
+    rowPositions.current = new Map(Array.from(list.querySelectorAll<HTMLElement>('[data-item-key]'), element => [
+      element.dataset.itemKey!, element.getBoundingClientRect(),
+    ]));
+    focusAfterRemoval.current = index;
+    removalAnimation.current = null;
+    setShoppinglist(items => items.filter(value => value !== item));
+    setIsRemovingRow(false);
+  }
+
   function handleCheck(index: number, checked: boolean) {
     const newList = shoppingList.map((item, itemIndex) =>
       itemIndex === index ? updateItem(item, { checked }) : item
@@ -566,7 +608,7 @@ function App() {
                                   }
                                 }}
                               />
-                              <Button variant="outline-danger" aria-label={`Remove item ${index + 1}`} onClick={() => setShoppinglist(items => items.filter((_, position) => position !== index))}>&#215;</Button>
+                              <Button variant="outline-danger" aria-label={`Remove item ${index + 1}`} onClick={() => void removeItem(index)} disabled={isBusy}>&#215;</Button>
                             </>}
                           </div></Fragment>);
                       })}
