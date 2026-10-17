@@ -67,7 +67,7 @@ async function confirmApiKey(user: ReturnType<typeof userEvent.setup>, key = 'sk
 }
 
 function getNavButton(label: string) {
-  return screen.getByText(label).previousElementSibling as HTMLButtonElement
+  return screen.getByRole('button', { name: label }) as HTMLButtonElement
 }
 
 describe('App', () => {
@@ -101,10 +101,11 @@ describe('App', () => {
     await confirmApiKey(user)
 
     expect(OpenAiWrapperMock).toHaveBeenCalledWith('sk-test')
-    expect(screen.getByText('Upload an image')).toBeInTheDocument()
+    expect(screen.getByText('Handy List')).toBeInTheDocument()
     expect(screen.getByText('Back')).toBeInTheDocument()
-    expect(screen.getByText('Upload')).toBeInTheDocument()
-    expect(screen.getByText('Process')).toBeInTheDocument()
+    expect(screen.getByText('Photo')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add list' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('List name')).not.toBeInTheDocument()
     expect(screen.getByText('Clear')).toBeInTheDocument()
   })
 
@@ -138,6 +139,50 @@ describe('App', () => {
     expect(screen.getByRole('checkbox')).toBeChecked()
   })
 
+  it('covers the list until image preparation and recognition finish', async () => {
+    mockFileReader()
+    let finishPreparation!: (image: Blob) => void
+    let finishRecognition!: (items: string) => void
+    vi.mocked(compressImage).mockReturnValue(new Promise(resolve => { finishPreparation = resolve }))
+    recogniseHandwriting.mockReturnValueOnce(new Promise(resolve => { finishRecognition = resolve }))
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    const file = new File(['photo'], 'list.png', { type: 'image/png' })
+    await user.upload(document.querySelector('#upload') as HTMLInputElement, file)
+    const list = screen.getByRole('region', { name: 'Shopping list' })
+    expect(list).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('status')).toHaveTextContent('Preparing image')
+    expect(list.querySelector('.shopping-list')).toHaveAttribute('inert')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await act(async () => { finishPreparation(file) })
+    expect(screen.getByRole('status')).toHaveTextContent('Processing image')
+    await act(async () => { finishRecognition('milk') })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(list).toHaveAttribute('aria-busy', 'false')
+    expect(list.querySelector('.shopping-list')).not.toHaveAttribute('inert')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+  })
+
+  it('offers Photo beside Add item and starts a draft after selecting a photo', async () => {
+    mockFileReader()
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    const photo = screen.getByRole('button', { name: 'Photo' })
+    expect(photo.parentElement).toBe(screen.getByRole('button', { name: 'Add item' }).parentElement)
+    expect(photo.closest('nav')).toBeNull()
+    expect(photo).toBeEnabled()
+    await user.upload(document.querySelector('#upload') as HTMLInputElement, new File(['photo'], 'list.png', { type: 'image/png' }))
+    await waitFor(() => expect(screen.getByLabelText('Item 1 name')).toHaveValue('milk'))
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+    expect(photo).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByAltText('list.png')).not.toBeInTheDocument()
+    expect(photo).toBeEnabled()
+  })
+
   it('processes an uploaded image into a shopping list', async () => {
     mockFileReader()
     const user = userEvent.setup()
@@ -147,22 +192,21 @@ describe('App', () => {
 
     const file = new File(['fake-image'], 'list.png', { type: 'image/png' })
     const input = document.querySelector('#upload') as HTMLInputElement
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
     await user.upload(input, file)
 
     await waitFor(() => {
       expect(document.querySelector('.uploaded-image')).toBeInTheDocument()
     })
 
-    const processButton = getNavButton('Process')
-    expect(processButton).not.toBeDisabled()
-    await user.click(processButton)
 
     await waitFor(() => {
-      expect(screen.getByText('milk')).toBeInTheDocument()
-      expect(screen.getByText('bread')).toBeInTheDocument()
-      expect(screen.getByText('eggs')).toBeInTheDocument()
+      expect(screen.getByLabelText('Item 1 name')).toHaveValue('milk')
+      expect(screen.getByLabelText('Item 2 name')).toHaveValue('bread')
+      expect(screen.getByLabelText('Item 3 name')).toHaveValue('eggs')
     })
 
+    await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(recogniseHandwriting).toHaveBeenCalledOnce()
     expect(vi.mocked(saveSession).mock.calls.filter(call => call[1] instanceof Blob)).toHaveLength(1)
     expect(saveSession).toHaveBeenCalledWith(expect.objectContaining({ imageId: 'current' }), file)
@@ -170,7 +214,7 @@ describe('App', () => {
       shoppingList: [{ name: 'milk', checked: false }, { name: 'bread', checked: false }, { name: 'eggs', checked: false }],
       imageId: 'current',
       fileName: 'list.png',
-    })))
+    }), file))
   })
 
   it('shows a processing error toast when OCR fails', async () => {
@@ -184,13 +228,12 @@ describe('App', () => {
     await confirmApiKey(user)
 
     const file = new File(['fake-image'], 'list.png', { type: 'image/png' })
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
     await user.upload(document.querySelector('#upload') as HTMLInputElement, file)
 
-    await waitFor(() => {
-      expect(getNavButton('Process')).not.toBeDisabled()
-    })
 
-    await user.click(getNavButton('Process'))
+    await waitFor(() => expect(recogniseHandwriting).toHaveBeenCalledOnce())
+    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Processing error', expect.any(Object))
@@ -228,7 +271,7 @@ describe('App', () => {
     await user.click(getNavButton('Clear'))
 
     expect(screen.queryByText('milk')).not.toBeInTheDocument()
-    expect(screen.getByText('Upload an image')).toBeInTheDocument()
+    expect(screen.getByText('Handy List')).toBeInTheDocument()
     await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith({
       id: 'current', shoppingList: [], fileName: '',
     }, null))
@@ -245,20 +288,6 @@ describe('App', () => {
 
     expect(screen.getByLabelText(/enter an api key/i)).toBeInTheDocument()
     expect(screen.queryByText('Process')).not.toBeInTheDocument()
-  })
-  it('restores an image that can be processed after reload', async () => {
-    mockFileReader()
-    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [], image: new Blob(['restored'], { type: 'image/png' }), imageId: 'current', fileName: 'saved.png' })
-    const user = userEvent.setup()
-    render(<App />)
-    await confirmApiKey(user)
-    expect(screen.getByAltText('saved.png')).toHaveAttribute('src', 'blob:preview')
-    const readAsDataURL = vi.spyOn(FileReader.prototype, 'readAsDataURL')
-    await user.click(getNavButton('Process'))
-    await waitFor(() => expect(recogniseHandwriting).toHaveBeenCalledWith('data:image/png;base64,fakeimagecontent'))
-    expect(readAsDataURL).toHaveBeenCalledWith(expect.any(Blob))
-    expect(readAsDataURL.mock.calls[0][0]).not.toBeInstanceOf(File)
-    readAsDataURL.mockRestore()
   })
 
   it('keeps existing data untouched when loading fails', async () => {
@@ -315,8 +344,12 @@ describe('App', () => {
     render(<App />)
     await confirmApiKey(user)
     vi.mocked(saveSession).mockRejectedValue(new DOMException('Full', 'QuotaExceededError'))
+    mockFileReader()
     const file = new File(['image'], 'list.png', { type: 'image/png' })
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
     await user.upload(document.querySelector('#upload') as HTMLInputElement, file)
+    await waitFor(() => expect(recogniseHandwriting).toHaveBeenCalledOnce())
+    await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Browser storage is full')
     vi.mocked(saveSession).mockResolvedValue(undefined)
     await user.click(screen.getByRole('button', { name: 'Retry save' }))
@@ -328,36 +361,43 @@ describe('App', () => {
   })
 
   it('stores the compressed Blob rather than the original photo', async () => {
+    mockFileReader()
     const compressed = new Blob(['small'], { type: 'image/jpeg' })
     vi.mocked(compressImage).mockResolvedValue(compressed)
     const user = userEvent.setup()
     render(<App />)
     await confirmApiKey(user)
     const file = new File(['large photo'], 'phone.png', { type: 'image/png' })
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
     await user.upload(document.querySelector('#upload') as HTMLInputElement, file)
-    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ fileName: 'phone.png' }), compressed))
-    expect(compressImage).toHaveBeenCalledWith(file)
-    const readAsDataURL = vi.spyOn(FileReader.prototype, 'readAsDataURL')
-    await user.click(getNavButton('Process'))
     await waitFor(() => expect(recogniseHandwriting).toHaveBeenCalledOnce())
-    expect(readAsDataURL).toHaveBeenCalledWith(file)
-    expect(readAsDataURL).not.toHaveBeenCalledWith(compressed)
-    readAsDataURL.mockRestore()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(saveSession).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'phone.png' }), compressed))
+    expect(compressImage).toHaveBeenCalledWith(file)
+    expect(recogniseHandwriting).toHaveBeenCalledWith('data:image/png;base64,fakeimagecontent')
   })
 
-  it('keeps the previous list and image if compression fails', async () => {
-    const image = new Blob(['old'])
-    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [{ name: 'milk', checked: true }], imageId: 'current', image, fileName: 'old.png' })
-    vi.mocked(compressImage).mockRejectedValue(new Error('Photo cannot be compressed'))
-    const { toast } = await import('react-toastify')
+  it('keeps the source photo compact until the user expands it', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [{ name: 'milk', checked: false }], image: new Blob(['photo']), fileName: 'list.png' })
     const user = userEvent.setup()
     render(<App />)
     await confirmApiKey(user)
-    await user.upload(document.querySelector('#upload') as HTMLInputElement, new File(['bad'], 'new.png', { type: 'image/png' }))
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Photo cannot be compressed', expect.any(Object)))
-    expect(screen.getByRole('checkbox')).toBeChecked()
-    expect(screen.getByAltText('old.png')).toBeInTheDocument()
-    expect(vi.mocked(saveSession).mock.calls.every(call => call.length === 1)).toBe(true)
+    expect(screen.getByAltText('list.png')).toBeVisible()
+    expect(screen.getByAltText('Full source photo')).not.toBeVisible()
+    await user.click(screen.getByText('Uploaded photo'))
+    expect(screen.getByAltText('Full source photo')).toBeVisible()
+    await user.click(screen.getByText('Uploaded photo'))
+    expect(screen.getByAltText('Full source photo')).not.toBeVisible()
+  })
+
+  it('blocks a second upload for a saved image', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [], image: new Blob(['old']), fileName: 'old.png' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByRole('button', { name: 'Photo' })).toBeDisabled()
+    expect(document.querySelector('#upload')).toBeDisabled()
   })
 
   it('restores processed results without re-running OCR after reload', async () => {
@@ -370,12 +410,12 @@ describe('App', () => {
     await confirmApiKey(user)
     expect(screen.getByText('milk')).toBeInTheDocument()
     expect(screen.getByRole('checkbox')).toBeChecked()
-    expect(getNavButton('Process')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Photo' })).toBeDisabled()
     expect(recogniseHandwriting).not.toHaveBeenCalled()
   })
 
   it.each([
-    { hasImage: true, processed: false, warns: true },
+    { hasImage: true, processed: false, warns: false },
     { hasImage: true, processed: true, warns: false },
     { hasImage: false, processed: false, warns: false },
   ])('warns before leaving only for unprocessed images after saving: %o', async ({ hasImage, processed, warns }) => {
@@ -390,4 +430,114 @@ describe('App', () => {
     expect(event.defaultPrevented).toBe(warns)
   })
 
+  it('adds a new item directly while existing items stay outside edit mode', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [{ name: 'milk', checked: true }], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    await user.click(screen.getByRole('button', { name: 'Add item' }))
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'milk' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'milk' })).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('New item name'), 'milk')
+    await user.click(screen.getByRole('button', { name: 'Confirm new item' }))
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ shoppingList: [{ name: 'milk', checked: true }, { name: 'milk', checked: false }] })))
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getAllByRole('textbox')).toHaveLength(2)
+  })
+
+  it('cancels a new item without adding a blank entry', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    await user.click(screen.getByRole('button', { name: 'Add item' }))
+    expect(screen.getByRole('button', { name: 'Confirm new item' })).toBeDisabled()
+    await user.type(screen.getByLabelText('New item name'), 'bread')
+    await user.click(screen.getByRole('button', { name: 'Cancel new item' }))
+    expect(screen.queryByLabelText('New item name')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('enables Edit only while the list contains items', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Add item' }))
+    await user.type(screen.getByLabelText('New item name'), 'milk')
+    await user.click(screen.getByRole('button', { name: 'Confirm new item' }))
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
+  })
+
+  it('creates and saves a manual list without an image', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    for (let index = 1; index <= 2; index++) {
+      await user.click(screen.getByRole('button', { name: 'Add item' }))
+      await user.type(screen.getByLabelText('New item name'), 'milk')
+      await user.click(screen.getByRole('button', { name: 'Confirm new item' }))
+    }
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ shoppingList: [{ name: 'milk', checked: false }, { name: 'milk', checked: false }] })))
+    expect(recogniseHandwriting).not.toHaveBeenCalled()
+  })
+
+  it('removes an item in edit mode and saves only the remaining items', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [{ name: 'milk', checked: true }, { name: 'milk', checked: false }], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    await user.click(screen.getByRole('button', { name: 'Remove item 1' }))
+    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+    expect(screen.getByLabelText('Item 1 name')).toHaveValue('milk')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByRole('checkbox', { name: 'milk' })).not.toBeChecked()
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ shoppingList: [{ name: 'milk', checked: false }] })))
+  })
+
+  it('restores removed items when the edit is cancelled', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [{ name: 'milk', checked: true }], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    await user.click(screen.getByRole('button', { name: 'Remove item 1' }))
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('checkbox', { name: 'milk' })).toBeChecked()
+  })
+
+  it('cancels item edits without saving the draft', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [{ name: 'milk', checked: true }], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    await user.clear(screen.getByLabelText('Item 1 name'))
+    await user.type(screen.getByLabelText('Item 1 name'), 'bread')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('heading', { name: /^HandyList/ })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'milk' })).toBeChecked()
+    expect(vi.mocked(saveSession).mock.calls.some(call => call[0].shoppingList.some(item => item.name === 'bread'))).toBe(false)
+  })
+
+  it('appends image results after manual items and preserves duplicates', async () => {
+    mockFileReader()
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [{ name: 'milk', checked: true }], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    await user.upload(document.querySelector('#upload') as HTMLInputElement, new File(['photo'], 'list.png', { type: 'image/png' }))
+    await waitFor(() => expect(screen.getAllByRole('textbox')).toHaveLength(4))
+    expect(screen.getByRole('button', { name: 'Photo' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getAllByRole('checkbox').map(input => input.getAttribute('aria-label'))).toEqual(['milk', 'milk', 'bread', 'eggs'])
+    expect(screen.getAllByRole('checkbox')[0]).toBeChecked()
+  })
 })
