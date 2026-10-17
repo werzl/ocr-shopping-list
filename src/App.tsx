@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ChangeEvent } from "react";
 import { ToastContainer, toast } from "react-toastify";
-import { Row, Col, Card, Navbar, Button } from "react-bootstrap";
+import { Container, Row, Col, Card, Navbar, Button } from "react-bootstrap";
 
 import notepadLogo from "./assets/notepad.png";
 import OpenAiWrapper from "./openai/OpenAiWrapper";
@@ -254,11 +254,11 @@ function App() {
   }
 
   return (
-    <>
+    <Container className="app-shell">
         <Row>
           <Col>
             <div>
-                <h2><img src={notepadLogo} className="logo" alt="Notepad logo" /> HandyList {appVersion}</h2>
+                <h2 className="app-heading"><img src={notepadLogo} className="logo" alt="Notepad logo" /> HandyList {appVersion}</h2>
             </div>
 
             {isPreparingImage && <p role="status">Preparing image...</p>}
@@ -266,12 +266,12 @@ function App() {
             {storageError && storageReady && <Button onClick={() => setSaveRetry(value => value + 1)}>Retry save</Button>}
             {!storageReady && !storageError && <p role="status">Loading saved list...</p>}
             {!apiKeyConfirmed &&
-              <div className="div">
+              <div className="api-key-panel">
                 <form className="mt-3 text-center" >
                   <label htmlFor="apiKey">Enter an API Key</label>
                   <br />
 
-                  <input type="password" id="apiKey" placeholder="API-Key" onChange={e => setApiKey(e.target.value)} style={{ "width": "400px" }} />
+                  <input type="password" id="apiKey" placeholder="API-Key" onChange={e => setApiKey(e.target.value)} className="form-control mt-2" />
 
                   <br /><br />
 
@@ -283,15 +283,15 @@ function App() {
             }
 
             {apiKeyConfirmed &&
-              <>
+              <Row className="workspace g-4">
                 {image &&
-                  <div className="uploaded-image-container">
-                    <p><img src={imageUrl || undefined} className="uploaded-image" alt={imageFileName || "Uploaded shopping list"} /> <small className="fw-lighter fst-italic">Zoom in to see me! <PinchIcon /></small></p>
+                  <Col xs={12} lg={6} className="uploaded-image-container">
+                    <p><img src={imageUrl || undefined} className="uploaded-image" alt={imageFileName || "Uploaded shopping list"} /> <small className="zoom-hint d-lg-none fw-lighter fst-italic">Zoom in to see me! <PinchIcon /></small></p>
 
-                  </div>
+                  </Col>
                 }
 
-                <div className="shopping-list" ref={shoppingListRef}>
+                <Col xs={12} lg={image ? 6 : 12} className="shopping-list" ref={shoppingListRef} role="region" aria-label="Shopping list" tabIndex={0}>
                   {shoppingList.length > 0 &&
                     <>
                       {shoppingList.map((item, index) => {
@@ -302,13 +302,13 @@ function App() {
                             <label htmlFor={String(key)} className="item">
                               <input type="checkbox" id={String(key)} className="hidden" checked={item.checked} onChange={(e) => handleCheck(index, e.target.checked)} />
 
-                              <label htmlFor={String(key)} className="cbx">
+                              <span className="cbx" aria-hidden="true">
                                 <svg width="14px" height="12px" viewBox="0 0 14 12">
                                   <polyline points="1 7.6 5 11 13 1"></polyline>
                                 </svg>
-                              </label>
+                              </span>
 
-                              <label htmlFor={String(key)} className="cbx-lbl">{item.name}</label>
+                              <span className="cbx-lbl">{item.name}</span>
                             </label>
                           </div>);
                       })}
@@ -316,7 +316,7 @@ function App() {
                   }
 
                   {shoppingList.length === 0 && !image &&
-                    <Card bg="light" text="dark" className="mt-5 text-start">
+                    <Card bg="light" text="dark" className="empty-list text-start">
                       <Card.Header className="border-bottom">Upload an image</Card.Header>
                       <Card.Body>
                         <Card.Text>
@@ -325,8 +325,8 @@ function App() {
                       </Card.Body>
                     </Card>
                   }
-                </div>
-              </>
+                </Col>
+              </Row>
             }
 
             <ToastContainer />
@@ -337,7 +337,7 @@ function App() {
         <Navbar fixed="bottom" className="app-nav-bar justify-content-center">
           <Row>
             <Col>
-              <button className="nav-button" onClick={() => handleBack()} disabled={isBusy}>
+              <button aria-label="Back" className="nav-button" onClick={() => handleBack()} disabled={isBusy}>
                 <LeftIcon />
               </button>
 
@@ -346,14 +346,14 @@ function App() {
 
             <Col>
               <input ref={inputFileButtonRef} type="file" id="upload" accept="image/jpeg, image/jpg, image/png, image/webp, image/gif" onChange={handleImageUpload} style={{ display: "none" }} disabled={isLoading} />
-              <label htmlFor="upload">
+              <button className="nav-button upload-button" aria-label="Upload" onClick={() => inputFileButtonRef.current?.click()} disabled={isBusy}>
                 <PhotoIcon />
-                <small>Upload</small>
-              </label>
+              </button>
+              <small>Upload</small>
             </Col>
 
             <Col>
-              <button className={`nav-button ${isLoading ? "loading" : ""}`} onClick={async () => await processImage()} disabled={isBusy || shoppingList.length > 0 || !imageUrl}>
+              <button aria-label="Process" className={`nav-button ${isLoading ? "loading" : ""}`} onClick={async () => await processImage()} disabled={isBusy || shoppingList.length > 0 || !imageUrl}>
                 {!isLoading && <PlayIcon />}
                 {isLoading && <div className="loader"></div>}
               </button>
@@ -362,7 +362,7 @@ function App() {
             </Col>
 
             <Col>
-              <button className="nav-button" onClick={() => handleClear()} disabled={isLoading}>
+              <button aria-label="Clear" className="nav-button" onClick={() => handleClear()} disabled={isLoading}>
                 <TrashIcon />
               </button>
 
@@ -371,7 +371,7 @@ function App() {
           </Row>
         </Navbar>
       }
-    </>
+    </Container>
   );
 }
 

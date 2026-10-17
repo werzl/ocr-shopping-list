@@ -114,3 +114,60 @@ Put all test suites, test setup, fixtures and test-only helpers under the reposi
 # Browser tests
 
 Put real browser tests under `tests/browser/`. Keep mocked unit tests elsewhere under `tests/`. Run `npm run test:browser:install` after installing dependencies or changing Playwright. The required `npm run test:run` command runs both unit and headless Chromium tests. Do not replace browser compression and persistence checks with mocks.
+
+# CSS standards
+
+Apply these rules when you add or edit CSS:
+
+- Use multiline blocks, even for a single declaration. Do not write one-line CSS blocks.
+- Put each declaration on its own line.
+- Use two spaces for each indentation level, including inside media queries and nested rules.
+- Put the opening brace on the selector line. Put the closing brace on its own line.
+- Put each selector in a selector list on its own line.
+- Add one space after each declaration colon. End each declaration with a semicolon.
+- Separate rule blocks with one blank line.
+- Format each rule you edit according to these standards.
+- Keep related styles together. Put responsive overrides near the rules they change.
+- Combine duplicate rules when their cascade order permits it. Do not append overrides to avoid editing an existing rule.
+- Remove unused selectors, declarations, and keyframes when your change makes them obsolete.
+- Remove commented CSS that no longer serves a purpose.
+- Use existing colour and spacing variables where suitable. Define a shared variable for repeated design values when useful.
+- Keep selectors as simple as practical. Use `!important` only when necessary, with a comment that explains why.
+- Preserve visible keyboard focus, disabled states, and touch targets when you change controls.
+- Respect reduced-motion preferences when you add animations or transitions.
+- Check affected layouts at mobile and desktop widths. Check light and dark modes when you change colours.
+
+## Responsive breakpoints
+
+- Use Bootstrap's default breakpoints for layout changes. Do not introduce nearby values such as `1000px` or `1024px`.
+- Write mobile styles as the base rules. Use `min-width` queries for larger layouts.
+- Match CSS queries to React Bootstrap props and Bootstrap utilities. For example, `lg` starts at `992px` in all three.
+- Use `lg` (`992px`) for this app's desktop layout. Keep mobile behaviour below that breakpoint.
+- Use Bootstrap's upper bounds when a `max-width` query is necessary. For example, use `991.98px` for widths below `lg`.
+- Use the same breakpoint for related changes to the photo, checklist, and navbar.
+- Check layouts immediately below and at each affected breakpoint, as well as at representative mobile and desktop widths.
+- Check the installed Bootstrap breakpoint map before changing these values after a Bootstrap upgrade.
+
+| Bootstrap tier | Minimum width | Upper bound for the preceding tier |
+| --- | --- | --- |
+| `xs` | `0` (base styles) | Not applicable |
+| `sm` | `576px` | `575.98px` |
+| `md` | `768px` | `767.98px` |
+| `lg` | `992px` | `991.98px` |
+| `xl` | `1200px` | `1199.98px` |
+| `xxl` | `1400px` | `1399.98px` |
+
+Use this format:
+
+```css
+.example-button {
+  min-height: 48px;
+  border-radius: 1rem;
+}
+
+@media (min-width: 992px) {
+  .example-button {
+    padding: 0.75rem 1rem;
+  }
+}
+```
