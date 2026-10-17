@@ -5,7 +5,8 @@ import { categoryOrder } from './categories';
 import { itemCategory, reorderItems } from './reorderItems';
 import DragHandle from './DragHandle';
 import AnimatedDetails from './AnimatedDetails';
-import { animateRows, shrinkList, revealEmptyList } from './listMotion';
+import { animateRows, shrinkList, revealEmptyList, animateEditMode } from './listMotion';
+import { animateNavbar, captureNavbar, type NavbarPositions } from './navbarMotion';
 
 import notepadLogo from "./assets/notepad.png";
 import OpenAiWrapper from "./openai/OpenAiWrapper";
@@ -63,14 +64,49 @@ function App() {
   const [apiKeyConfirmed, setApiKeyConfirmed] = useState(false);
 
   const [isClearing, setIsClearing] = useState(false);
-  const isBusy = isLoading || isPreparingImage || isClearing;
+  const [isChangingMode, setIsChangingMode] = useState(false);
+  const isBusy = isLoading || isPreparingImage || isClearing || isChangingMode;
+  const modeAnimation = useRef<Animation | null>(null);
+  const revealMode = useRef(false);
   const clearAnimation = useRef<Animation | null>(null);
   const revealAfterClear = useRef(false);
 
   useEffect(() => () => clearAnimation.current?.cancel(), []);
+  useEffect(() => () => modeAnimation.current?.cancel(), []);
 
   const shoppingListRef = useRef<HTMLDivElement>(null);
+  const revealCategories = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!revealCategories.current || !shoppingListRef.current)
+      return;
+
+    revealCategories.current = false;
+    const animation = animateEditMode(shoppingListRef.current, false, true);
+
+    return () => animation?.cancel();
+  }, [categories]);
+  const navbarRef = useRef<HTMLDivElement>(null);
+  const navbarPositions = useRef<NavbarPositions>(new Map());
+
+  useLayoutEffect(() => {
+    if (!navbarRef.current)
+      return;
+
+    const cleanup = navbarPositions.current.size ? animateNavbar(navbarRef.current, navbarPositions.current) : undefined;
+    navbarPositions.current = captureNavbar(navbarRef.current);
+
+    return cleanup;
+  }, [isEditing, apiKeyConfirmed]);
   const rowPositions = useRef<Map<string, DOMRect> | null>(null);
+
+  useLayoutEffect(() => {
+    if (revealMode.current && shoppingListRef.current) {
+      modeAnimation.current?.cancel();
+      modeAnimation.current = animateEditMode(shoppingListRef.current, isEditing, true);
+      revealMode.current = false;
+    }
+  }, [isEditing]);
 
   useLayoutEffect(() => {
     if (revealAfterClear.current && shoppingListRef.current) {
@@ -245,6 +281,35 @@ function App() {
   function startEditing() {
     snapshot.current = { items: shoppingList, image, fileName: imageFileName };
     setIsEditing(true);
+  }
+
+  async function changeEditing(editing: boolean, save = false) {
+    if (isBusy)
+      return;
+
+    if (shoppingListRef.current) {
+      modeAnimation.current?.cancel();
+      modeAnimation.current = animateEditMode(shoppingListRef.current, editing, false);
+      if (modeAnimation.current) {
+        setIsChangingMode(true);
+        try {
+          await modeAnimation.current.finished;
+        } catch {
+          return;
+        }
+      }
+
+      revealMode.current = true;
+    }
+
+    if (editing)
+      startEditing();
+    else if (save)
+      saveEditing();
+    else
+      cancelEditing();
+
+    setIsChangingMode(false);
   }
 
   function cancelEditing() {
@@ -429,16 +494,19 @@ function App() {
             <Row className="workspace g-4">
               <Col xs={12} className="list-heading">
                 <h3>HandyList {appVersion}</h3>
-                {!isEditing && <button type="button" className="edit-list-icon" aria-label="Edit" title="Edit list" onClick={startEditing} disabled={isBusy || newItem !== null || shoppingList.length === 0}>
-                  <EditIcon width="18" height="18" aria-hidden="true" />
-                </button>}
               </Col>
-              <Col xs={12}>
+              <Col xs={12} className="d-flex align-items-center justify-content-between gap-2">
                 <label className="d-inline-flex align-items-center gap-2 py-2">
                   <input type="checkbox" checked={categories} disabled={isBusy || isEditing || newItem !== null}
-                    onChange={e => setCategories(e.target.checked)} />
+                    onChange={e => {
+                      revealCategories.current = true;
+                      setCategories(e.target.checked);
+                    }} />
                   Categorise
                 </label>
+                {!isEditing && <button type="button" className="edit-list-icon" aria-label="Edit" title="Edit list" onClick={() => void changeEditing(true)} disabled={isBusy || newItem !== null || shoppingList.length === 0}>
+                  <EditIcon width="18" height="18" aria-hidden="true" />
+                </button>}
               </Col>
               {image && <Col xs={12}>
                 <AnimatedDetails className="source-photo">
@@ -555,18 +623,18 @@ function App() {
       </Row>
 
       {apiKeyConfirmed &&
-        <div className="navbar-dock">
+        <div className="navbar-dock" ref={navbarRef}>
         <Navbar className="app-nav-bar" aria-label="List actions">
           <button aria-label="Back" className="nav-button" onClick={handleBack} disabled={isBusy || isEditing}>
             <LeftIcon aria-hidden="true" />
             <span>Back</span>
           </button>
           {isEditing && <>
-            <button aria-label="Cancel" className="nav-button" onClick={cancelEditing} disabled={isBusy}>
+            <button aria-label="Cancel" className="nav-button" onClick={() => void changeEditing(false)} disabled={isBusy}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12 M18 6 6 18" /></svg>
               <span>Cancel</span>
             </button>
-            <button aria-label="Save" className="nav-button nav-save" onClick={saveEditing} disabled={isBusy}>
+            <button aria-label="Save" className="nav-button nav-save" onClick={() => void changeEditing(false, true)} disabled={isBusy}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
               <span>Save</span>
             </button>

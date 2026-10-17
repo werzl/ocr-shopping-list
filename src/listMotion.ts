@@ -4,6 +4,20 @@ export function motionEnabled() {
   return typeof matchMedia === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+export function animateEditMode(list: HTMLElement, editing: boolean, entering: boolean): Animation | null {
+  if (!motionEnabled() || typeof list.animate !== 'function')
+    return null;
+
+  const small = { transform: 'scale(0.96)', opacity: 0 };
+  const large = { transform: 'scale(1.04)', opacity: 0 };
+  const visible = { transform: 'scale(1)', opacity: 1 };
+
+  return list.animate(entering
+    ? [editing ? large : small, visible]
+    : [visible, editing ? small : large],
+  { ...motionOptions, duration: entering ? 180 : 110, fill: entering ? 'none' : 'forwards' });
+}
+
 export function shrinkList(list: HTMLElement): Animation | null {
   if (!motionEnabled() || typeof list.animate !== 'function')
     return null;

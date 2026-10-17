@@ -427,6 +427,19 @@
   box-shadow: 0 8px 32px light-dark(#26334d1a, #00000055);
 }
 
+.app-nav-bar.nav-exit-preview {
+  position: fixed;
+  z-index: 1031;
+  right: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+
 @media (min-width: 992px) {
   .app-shell {
     max-width: 1140px;

@@ -2,8 +2,64 @@ import { createElement, act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import AnimatedDetails from '../../src/AnimatedDetails';
-import { animateRows, shrinkList, revealEmptyList } from '../../src/listMotion';
+import { animateRows, shrinkList, revealEmptyList, animateEditMode } from '../../src/listMotion';
 import '../../src/App.css';
+import { animateNavbar, captureNavbar } from '../../src/navbarMotion';
+
+it('moves navbar controls and removes exiting Save and Cancel previews', async () => {
+  const nav = document.createElement('div');
+  nav.className = 'app-nav-bar';
+  document.body.append(nav);
+  const buttons = (labels: string[]) => labels.map(label => `<button class="nav-button" aria-label="${label}">${label}</button>`).join('');
+  try {
+    nav.innerHTML = buttons(['Back', 'Clear']);
+    const closed = captureNavbar(nav);
+    nav.innerHTML = buttons(['Back', 'Cancel', 'Save', 'Clear']);
+    const entering = animateNavbar(nav, closed);
+    expect(nav.querySelector('[aria-label="Save"]')!.getAnimations()).toHaveLength(1);
+    await Promise.all(nav.getAnimations({ subtree: true }).map(animation => animation.finished));
+    entering();
+    const open = captureNavbar(nav);
+    nav.innerHTML = buttons(['Back', 'Clear']);
+    const exiting = animateNavbar(nav, open);
+    expect(document.querySelectorAll('.nav-exit-preview')).toHaveLength(2);
+    expect(document.querySelector<HTMLElement>('.nav-exit-preview')!.inert).toBe(true);
+    await Promise.all(document.getAnimations().map(animation => animation.finished));
+    expect(document.querySelectorAll('.nav-exit-preview')).toHaveLength(0);
+    exiting();
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    animateNavbar(nav, open)();
+    expect(document.querySelectorAll('.nav-exit-preview')).toHaveLength(0);
+  } finally {
+    nav.remove();
+    vi.unstubAllGlobals();
+  }
+});
+
+it('animates Edit and Cancel in opposite directions and skips reduced motion', async () => {
+  const list = document.createElement('div');
+  document.body.append(list);
+  try {
+    for (const editing of [true, false]) {
+      const exit = animateEditMode(list, editing, false)!;
+      await exit.finished;
+      expect(getComputedStyle(list).opacity).toBe('0');
+      exit.cancel();
+      const entrance = animateEditMode(list, editing, true)!;
+      const frames = (entrance.effect as KeyframeEffect).getKeyframes();
+      expect(frames[0].transform).toBe(editing ? 'scale(1.04)' : 'scale(0.96)');
+      await entrance.finished;
+      expect(getComputedStyle(list).opacity).toBe('1');
+      expect(getComputedStyle(list).transform).toBe('none');
+    }
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    expect(animateEditMode(list, true, false)).toBeNull();
+    expect(animateEditMode(list, false, true)).toBeNull();
+  } finally {
+    vi.unstubAllGlobals();
+    list.remove();
+  }
+});
 
 it('shrinks the list before revealing its placeholder and skips reduced motion', async () => {
   const list = document.createElement('div');
