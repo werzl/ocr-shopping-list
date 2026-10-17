@@ -3,9 +3,9 @@ import OpenAI from "openai";
 const _apiKey = import.meta.env.VITE_OpenAI_Api_Key;
 
 export default class OpenAIWrapper {
-    #openai = null;
+    #openai: OpenAI;
 
-    constructor(apiKey) {
+    constructor(apiKey?: string) {
         if (!_apiKey && !apiKey) {
             throw new Error("Api Key was not set");
         }
@@ -16,7 +16,7 @@ export default class OpenAIWrapper {
         });
     }
 
-    async recogniseHandwriting(imageUrl) {
+    async recogniseHandwriting(imageUrl: string): Promise<string> {
         console.log("Making request to Open AI...");
 
         const response = await this.#openai.chat.completions.create({
@@ -50,7 +50,7 @@ export default class OpenAIWrapper {
 
         console.log("Successfully processed OpenAI request");
 
-        return response.choices[0].message.content;
+        return response.choices[0].message.content ?? "";
     }
 
     async testApiKey() {

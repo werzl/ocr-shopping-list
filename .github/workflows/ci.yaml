@@ -8,7 +8,7 @@ jobs:
   build:
     defaults:
       run:
-        working-directory: ocr-shopping-list-vite
+        working-directory: .
     runs-on: ubuntu-latest
     
     steps:
