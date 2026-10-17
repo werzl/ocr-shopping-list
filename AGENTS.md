@@ -57,9 +57,17 @@ Treat these as DevEx (non-exhaustive):
 
 Before you finish a DevEx change, confirm a reader who only has the docs can still set up and run the affected workflow. If the docs and the tools disagree, fix the docs (or say what is still unknown).
 
+# Checks during development
+
+- Run ESLint only on files affected by the current change.
+- Run only new tests added for the current change. Use test filters to select these tests.
+- If the change adds no tests, do not run tests during development.
+- Run full lint and test suites only immediately before a commit.
+
 # Pre-commit verification
 
-Before creating a git commit in this repo, run the full local quality gate from the repository root and only commit if every step succeeds.
+Immediately before each git commit, run the full local quality gate from the repository root.
+Commit only if every step succeeds.
 
 ## Required checks (in order)
 
