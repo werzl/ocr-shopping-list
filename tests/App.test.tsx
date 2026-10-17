@@ -71,6 +71,123 @@ function getNavButton(label: string) {
 }
 
 describe('App', () => {
+  it('shows Frozen and Ready Meals category headings for ice and prepared food', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', categories: true, shoppingList: [
+      { name: 'Pizza', checked: false }, { name: 'ICE', checked: false },
+      { name: 'ready meal', checked: false },
+    ], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    expect(screen.getAllByRole('heading', { level: 4 }).map(heading => heading.textContent)).toEqual(['Frozen', 'Ready Meals'])
+    expect(screen.getByRole('checkbox', { name: 'ICE' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Pizza' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'ready meal' })).toBeInTheDocument()
+  })
+
+  it('groups categories and keeps item actions attached to their original items', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', categories: true, shoppingList: [
+      { name: 'beer', checked: false }, { name: 'lettuce', checked: false },
+      { name: 'toothpaste', checked: true }, { name: 'tomato', checked: false },
+    ], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    expect(screen.getAllByRole('heading', { level: 4 }).map(heading => heading.textContent)).toEqual(['Veg', 'Toiletries', 'Alcohol'])
+    expect(screen.getByRole('checkbox', { name: 'Categorise' })).toBeEnabled()
+    await user.click(screen.getByRole('checkbox', { name: 'beer' }))
+    expect(screen.getByRole('checkbox', { name: 'beer' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'lettuce' })).not.toBeChecked()
+    await user.click(getNavButton('Edit'))
+    await user.clear(screen.getByRole('textbox', { name: 'Item 1 name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Item 1 name' }), 'apple')
+    await user.click(getNavButton('Save'))
+    expect(screen.getByRole('heading', { name: 'Fruit & Veg' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Alcohol' })).not.toBeInTheDocument()
+  })
+
+  it('allows category changes after adding an item and saves the choice', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    const option = screen.getByRole('checkbox', { name: 'Categorise' })
+    await user.click(option)
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ categories: true })))
+    await user.click(screen.getByRole('button', { name: 'Add item' }))
+    expect(option).toBeDisabled()
+    await user.type(screen.getByRole('textbox', { name: 'New item name' }), 'mystery item')
+    await user.click(screen.getByRole('button', { name: 'Confirm new item' }))
+    expect(option).toBeEnabled()
+    expect(screen.getByRole('heading', { name: 'Other' })).toBeInTheDocument()
+    await user.click(option)
+    expect(screen.queryByRole('heading', { name: 'Other' })).not.toBeInTheDocument()
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith({ id: 'current', shoppingList: [{ name: 'mystery item', checked: false }], fileName: '' }))
+    await user.click(option)
+    expect(screen.getByRole('heading', { name: 'Other' })).toBeInTheDocument()
+    await user.click(getNavButton('Clear'))
+    expect(option).toBeEnabled()
+    expect(screen.queryByRole('heading', { name: 'Other' })).not.toBeInTheDocument()
+    await user.click(option)
+    expect(option).not.toBeChecked()
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith({ id: 'current', shoppingList: [], fileName: '' }))
+  })
+
+  it('toggles categorise for an existing list without changing items or checked states', async () => {
+    const items = [{ name: 'beer', checked: true }, { name: 'apple', checked: false }, { name: 'beer', checked: false }]
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: items, image: null, fileName: '' })
+    const user = userEvent.setup()
+    const first = render(<App />)
+    await confirmApiKey(user)
+    const option = screen.getByRole('checkbox', { name: 'Categorise' })
+    const itemNames = () => screen.getAllByRole('checkbox', { name: /^(?!Categorise$).+/ }).map(input => input.getAttribute('aria-label'))
+    expect(itemNames()).toEqual(['beer', 'apple', 'beer'])
+    await user.click(option)
+    expect(itemNames()).toEqual(['apple', 'beer', 'beer'])
+    expect(screen.getAllByRole('heading', { level: 4 }).map(heading => heading.textContent)).toEqual(['Fruit & Veg', 'Alcohol'])
+    expect(screen.getAllByRole('checkbox', { name: 'beer' })[0]).toBeChecked()
+    expect(screen.getAllByRole('checkbox', { name: 'beer' })[1]).not.toBeChecked()
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ categories: true, shoppingList: items })))
+    await user.click(option)
+    expect(itemNames()).toEqual(['beer', 'apple', 'beer'])
+    expect(screen.queryByRole('heading', { level: 4 })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('checkbox', { name: 'beer' })[0]).toBeChecked()
+    expect(screen.getAllByRole('checkbox', { name: 'beer' })[1]).not.toBeChecked()
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith({ id: 'current', shoppingList: items, fileName: '' }))
+    const saved = vi.mocked(saveSession).mock.calls.at(-1)![0]
+    first.unmount()
+    vi.mocked(loadSession).mockResolvedValue({ ...saved, image: null })
+    render(<App />)
+    await confirmApiKey(user)
+    expect(screen.getByRole('checkbox', { name: 'Categorise' })).not.toBeChecked()
+    expect(itemNames()).toEqual(['beer', 'apple', 'beer'])
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByRole('checkbox', { name: 'Categorise' })).toBeDisabled()
+  })
+
+  it('groups photo results when categories are enabled', async () => {
+    mockFileReader()
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    await user.click(screen.getByRole('checkbox', { name: 'Categorise' }))
+    await user.upload(document.getElementById('upload') as HTMLInputElement, new File(['photo'], 'list.png', { type: 'image/png' }))
+    expect(await screen.findByRole('heading', { name: 'Dairy' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Bakery' })).toBeInTheDocument()
+    await user.click(getNavButton('Save'))
+    await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ categories: true, shoppingList: [
+      { name: 'milk', checked: false }, { name: 'bread', checked: false }, { name: 'eggs', checked: false },
+    ] }), expect.any(Blob)))
+  })
+
+  it('keeps the original order without category headings when categories are off', async () => {
+    vi.mocked(loadSession).mockResolvedValue({ id: 'current', shoppingList: [{ name: 'beer', checked: false }, { name: 'apple', checked: false }], image: null, fileName: '' })
+    const user = userEvent.setup()
+    render(<App />)
+    await confirmApiKey(user)
+    expect(screen.queryByRole('heading', { level: 4 })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('checkbox', { name: /beer|apple/ }).map(input => input.getAttribute('aria-label'))).toEqual(['beer', 'apple'])
+  })
+
   beforeEach(() => {
     localStorage.clear()
     vi.clearAllMocks()
@@ -136,7 +253,7 @@ describe('App', () => {
     await confirmApiKey(user)
 
     expect(screen.getByText('butter')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox')).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /^(?!Categorise$).+/ })).toBeChecked()
   })
 
   it('covers the list until image preparation and recognition finish', async () => {
@@ -248,7 +365,7 @@ describe('App', () => {
 
     await confirmApiKey(user)
 
-    const checkbox = screen.getByRole('checkbox')
+    const checkbox = screen.getByRole('checkbox', { name: /^(?!Categorise$).+/ })
     await user.click(checkbox)
 
     expect(checkbox).toBeChecked()
@@ -321,9 +438,9 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
     await confirmApiKey(user)
-    await user.click(screen.getAllByRole('checkbox')[0])
-    expect(screen.getAllByRole('checkbox')[0]).toBeChecked()
-    expect(screen.getAllByRole('checkbox')[1]).not.toBeChecked()
+    await user.click(screen.getAllByRole('checkbox', { name: /^(?!Categorise$).+/ })[0])
+    expect(screen.getAllByRole('checkbox', { name: /^(?!Categorise$).+/ })[0]).toBeChecked()
+    expect(screen.getAllByRole('checkbox', { name: /^(?!Categorise$).+/ })[1]).not.toBeChecked()
   })
 
   it('does not rewrite a restored image when checking an item', async () => {
@@ -332,7 +449,7 @@ describe('App', () => {
     const user = userEvent.setup()
     const { unmount } = render(<App />)
     await confirmApiKey(user)
-    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('checkbox', { name: /^(?!Categorise$).+/ }))
     await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith({ id: 'current', shoppingList: [{ name: 'milk', checked: true }], imageId: 'current', fileName: 'list.png' }))
     expect(vi.mocked(saveSession).mock.calls.every(call => call.length === 1)).toBe(true)
     unmount()
@@ -409,7 +526,7 @@ describe('App', () => {
     render(<App />)
     await confirmApiKey(user)
     expect(screen.getByText('milk')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox')).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /^(?!Categorise$).+/ })).toBeChecked()
     expect(screen.getByRole('button', { name: 'Photo' })).toBeDisabled()
     expect(recogniseHandwriting).not.toHaveBeenCalled()
   })
@@ -441,7 +558,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: 'milk' })).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('New item name'), 'milk')
     await user.click(screen.getByRole('button', { name: 'Confirm new item' }))
-    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    expect(screen.getAllByRole('checkbox', { name: /^(?!Categorise$).+/ })).toHaveLength(2)
     await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ shoppingList: [{ name: 'milk', checked: true }, { name: 'milk', checked: false }] })))
     await user.click(screen.getByRole('button', { name: 'Edit' }))
     expect(screen.getAllByRole('textbox')).toHaveLength(2)
@@ -456,7 +573,7 @@ describe('App', () => {
     await user.type(screen.getByLabelText('New item name'), 'bread')
     await user.click(screen.getByRole('button', { name: 'Cancel new item' }))
     expect(screen.queryByLabelText('New item name')).not.toBeInTheDocument()
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /^(?!Categorise$).+/ })).not.toBeInTheDocument()
   })
 
   it('enables Edit only while the list contains items', async () => {
@@ -481,7 +598,7 @@ describe('App', () => {
       await user.type(screen.getByLabelText('New item name'), 'milk')
       await user.click(screen.getByRole('button', { name: 'Confirm new item' }))
     }
-    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    expect(screen.getAllByRole('checkbox', { name: /^(?!Categorise$).+/ })).toHaveLength(2)
     await waitFor(() => expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ shoppingList: [{ name: 'milk', checked: false }, { name: 'milk', checked: false }] })))
     expect(recogniseHandwriting).not.toHaveBeenCalled()
   })
@@ -537,7 +654,7 @@ describe('App', () => {
     await waitFor(() => expect(screen.getAllByRole('textbox')).toHaveLength(4))
     expect(screen.getByRole('button', { name: 'Photo' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(screen.getAllByRole('checkbox').map(input => input.getAttribute('aria-label'))).toEqual(['milk', 'milk', 'bread', 'eggs'])
-    expect(screen.getAllByRole('checkbox')[0]).toBeChecked()
+    expect(screen.getAllByRole('checkbox', { name: /^(?!Categorise$).+/ }).map(input => input.getAttribute('aria-label'))).toEqual(['milk', 'milk', 'bread', 'eggs'])
+    expect(screen.getAllByRole('checkbox', { name: /^(?!Categorise$).+/ })[0]).toBeChecked()
   })
 })

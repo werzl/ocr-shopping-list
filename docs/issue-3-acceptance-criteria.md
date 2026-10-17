@@ -1,0 +1,27 @@
+# Issue #3 acceptance criteria
+
+- Add a **Categorise** checkbox.
+- Allow users to select or clear the checkbox when the list is empty or contains items.
+- Temporarily disable the checkbox during editing, item entry, and photo processing.
+- Apply changes immediately. Keep item names and checked states unchanged.
+- Save the option with the list. Restore the option after reload.
+- When users clear **Categorise**, hide category headings and restore the original item order.
+- When users select **Categorise**, group items under these headings:
+  - Fruit & Veg
+  - Veg
+  - Dairy
+  - Meat
+  - Seafood
+  - Pantry
+  - Bakery
+  - Frozen
+  - Ready Meals
+  - Toiletries
+  - Cleaning Products
+  - Pets
+  - Baby
+  - Medicine
+  - Alcohol
+  - Other
+- Show only headings that contain items.
+- Put unrecognised items under **Other**.
